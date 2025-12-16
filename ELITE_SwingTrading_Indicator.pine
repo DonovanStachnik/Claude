@@ -1,0 +1,522 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © EliteSwingTrading
+
+//@version=5
+indicator("ELITE Swing Trading System - High Conviction Only", overlay=true, max_labels_count=100, max_lines_count=100)
+
+// ==================================================================================
+// ELITE SWING TRADING SYSTEM
+// ==================================================================================
+// Philosophy: FEWER signals, MASSIVE conviction, BIG moves (50-200%)
+// Frequency: 1-3 signals per YEAR per stock
+// Win Rate Target: 80%+
+// Hold Time: 2-12 weeks minimum
+//
+// This indicator detects:
+// 1. Institutional accumulation (base building)
+// 2. Multi-week breakouts with massive volume
+// 3. Relative strength vs market (outperformance)
+// 4. Multi-timeframe alignment (ALL must agree)
+// 5. Money flow confirmation (smart money in)
+//
+// When ALL 12 criteria align = EXTREME CONVICTION TRADE
+// ==================================================================================
+
+// ==================================================================================
+// INPUT PARAMETERS
+// ==================================================================================
+
+// Conviction Settings
+int minCriteria = input.int(9, "Minimum Criteria (9/12 = ELITE)", minval=1, maxval=12, group="Conviction")
+bool requireRelativeStrength = input.bool(true, "Require Outperformance vs SPY", group="Conviction")
+bool requireBaseBreakout = input.bool(true, "Require Base Breakout", group="Conviction")
+
+// Base Detection (Consolidation)
+int baseMinBars = input.int(15, "Minimum Base Length (Bars)", minval=5, group="Base Detection")
+int baseMaxBars = input.int(40, "Maximum Base Length (Bars)", minval=10, group="Base Detection")
+float baseTightness = input.float(10.0, "Base Tightness % (Lower = Tighter)", minval=5.0, maxval=30.0, group="Base Detection")
+
+// Breakout Confirmation
+float breakoutVolume = input.float(50.0, "Breakout Volume % Above Avg", minval=20.0, group="Breakout")
+float breakoutStrength = input.float(3.0, "Breakout Strength % Above Base", minval=1.0, group="Breakout")
+
+// Risk Management
+float stopLossPct = input.float(12.0, "Stop Loss %", minval=5.0, maxval=25.0, group="Risk Management")
+float target1Pct = input.float(25.0, "Target 1 % (Trim 25%)", minval=10.0, group="Risk Management")
+float target2Pct = input.float(50.0, "Target 2 % (Trim 25%)", minval=20.0, group="Risk Management")
+float target3Pct = input.float(100.0, "Target 3 % (Trim 25%)", minval=50.0, group="Risk Management")
+float moonShotPct = input.float(200.0, "Moon Shot % (Let Ride)", minval=100.0, group="Risk Management")
+
+// Relative Strength
+string benchmarkSymbol = input.symbol("SPY", "Benchmark Symbol (SPY/QQQ)", group="Relative Strength")
+int rsLookback = input.int(20, "RS Lookback Period", minval=10, group="Relative Strength")
+
+// Visual Settings
+color buyColor = input.color(color.new(#00FF00, 0), "Buy Signal Color", group="Visual")
+color sellColor = input.color(color.new(#FF0000, 0), "Sell Signal Color", group="Visual")
+bool showDebugInfo = input.bool(false, "Show Debug Info", group="Visual")
+
+// ==================================================================================
+// HELPER FUNCTIONS
+// ==================================================================================
+
+ema(src, length) => ta.ema(src, length)
+sma(src, length) => ta.sma(src, length)
+rma(src, length) => ta.rma(src, length)
+
+// ==================================================================================
+// RELATIVE STRENGTH vs BENCHMARK (SPY/QQQ)
+// ==================================================================================
+
+// Get benchmark data
+benchmarkClose = request.security(benchmarkSymbol, timeframe.period, close)
+benchmarkHigh = request.security(benchmarkSymbol, timeframe.period, high)
+benchmarkLow = request.security(benchmarkSymbol, timeframe.period, low)
+
+// Calculate relative strength
+stockChange = (close - close[rsLookback]) / close[rsLookback] * 100
+benchmarkChange = (benchmarkClose - benchmarkClose[rsLookback]) / benchmarkClose[rsLookback] * 100
+relativeStrength = stockChange - benchmarkChange
+
+// Relative strength conditions
+rsPositive = relativeStrength > 0  // Outperforming market
+rsStrong = relativeStrength > 5  // Significantly outperforming (5%+)
+rsExtreme = relativeStrength > 10  // Massively outperforming (10%+)
+
+// ==================================================================================
+// VOLUME ANALYSIS (Institutional Activity)
+// ==================================================================================
+
+volumeMA = sma(volume, 50)
+volumeRatio = volume / volumeMA
+
+// Volume conditions
+volumeAboveAvg = volume > volumeMA
+volumeHigh = volume > volumeMA * 1.3  // 30% above average
+volumeExtreme = volume > volumeMA * 1.5  // 50% above average (institutional)
+volumeSurge = volume > volumeMA * 2.0  // 100% above average (major event)
+
+// On Balance Volume (OBV) - tracks money flow
+var float obv = 0
+obv := obv + math.sign(close - close[1]) * volume
+obvEma = ema(obv, 20)
+obvTrend = obv > obvEma  // OBV rising = accumulation
+
+// ==================================================================================
+// MONEY FLOW ANALYSIS (Chaikin Money Flow)
+// ==================================================================================
+
+// Chaikin Money Flow (CMF) - institutional buying/selling
+int cmfLength = 20
+mfMultiplier = ((close - low) - (high - close)) / (high - low)
+mfVolume = mfMultiplier * volume
+cmf = sma(mfVolume, cmfLength) / sma(volume, cmfLength)
+
+// Money flow conditions
+cmfPositive = cmf > 0  // Buying pressure
+cmfStrong = cmf > 0.1  // Strong buying
+cmfExtreme = cmf > 0.2  // Institutional accumulation
+
+// ==================================================================================
+// BASE DETECTION (Consolidation Range)
+// ==================================================================================
+
+// Calculate price range over lookback period
+var float baseHigh = na
+var float baseLow = na
+var int baseStart = na
+var bool inBase = false
+
+// Detect tight consolidation ranges
+priceRange = ta.highest(high, baseMaxBars) - ta.lowest(low, baseMaxBars)
+avgPrice = (ta.highest(high, baseMaxBars) + ta.lowest(low, baseMaxBars)) / 2
+rangePercent = (priceRange / avgPrice) * 100
+
+// Base conditions
+isTightRange = rangePercent < baseTightness  // Price compressed
+hasMinBars = bar_index > baseMinBars
+
+// Identify base
+if isTightRange and hasMinBars and not inBase
+    baseHigh := ta.highest(high, baseMinBars)
+    baseLow := ta.lowest(low, baseMinBars)
+    baseStart := bar_index - baseMinBars
+    inBase := true
+
+// Exit base on breakout
+if inBase and close > baseHigh * 1.02  // 2% above base high
+    inBase := false
+
+// Base breakout conditions
+breakingOutUp = not na(baseHigh) and close > baseHigh and close[1] <= baseHigh
+breakoutWithVolume = breakingOutUp and volumeExtreme
+consolidationBase = isTightRange and hasMinBars
+
+// ==================================================================================
+// MULTI-TIMEFRAME TREND ANALYSIS
+// ==================================================================================
+
+// Weekly timeframe
+ema20_W = request.security(syminfo.tickerid, "W", ema(close, 20))
+ema50_W = request.security(syminfo.tickerid, "W", ema(close, 50))
+close_W = request.security(syminfo.tickerid, "W", close)
+rsi_W = request.security(syminfo.tickerid, "W", ta.rsi(close, 14))
+
+weeklyUptrend = close_W > ema20_W and ema20_W > ema50_W
+weeklyOversold = rsi_W < 40
+weeklyBullish = weeklyUptrend or weeklyOversold
+
+// Daily timeframe
+ema20_D = request.security(syminfo.tickerid, "D", ema(close, 20))
+ema50_D = request.security(syminfo.tickerid, "D", ema(close, 50))
+ema200_D = request.security(syminfo.tickerid, "D", ema(close, 200))
+close_D = request.security(syminfo.tickerid, "D", close)
+
+dailyUptrend = close_D > ema20_D and ema20_D > ema50_D
+dailyAbove200 = close_D > ema200_D
+dailyBullish = dailyUptrend and dailyAbove200
+
+// 4H timeframe
+high_4H = request.security(syminfo.tickerid, "240", high)
+low_4H = request.security(syminfo.tickerid, "240", low)
+close_4H = request.security(syminfo.tickerid, "240", close)
+
+higherLows_4H = low_4H > low_4H[1] and low_4H[1] > low_4H[2]
+bullishStructure_4H = close_4H > high_4H[1]
+
+// 1H timeframe
+ema20_1H = request.security(syminfo.tickerid, "60", ema(close, 20))
+close_1H = request.security(syminfo.tickerid, "60", close)
+
+hourlyBullish = close_1H > ema20_1H
+
+// ==================================================================================
+// TECHNICAL INDICATORS
+// ==================================================================================
+
+// RSI
+rsi = ta.rsi(close, 14)
+rsiOversold = rsi < 30
+rsiRecovering = rsi > 30 and rsi < 50
+rsiBullish = rsiOversold or rsiRecovering
+
+// MACD
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+macdBullish = macdLine > signalLine
+macdCross = ta.crossover(macdLine, signalLine)
+macdRising = macdLine > macdLine[1] and signalLine > signalLine[1]
+
+// ADX (Trend Strength)
+[diPlus, diMinus, adx] = ta.dmi(14, 14)
+adxStrong = adx > 25
+adxVeryStrong = adx > 35
+trendingUp = diPlus > diMinus and adxStrong
+
+// Bollinger Bands (Volatility)
+bbBasis = sma(close, 20)
+bbDev = 2 * ta.stdev(close, 20)
+bbUpper = bbBasis + bbDev
+bbLower = bbBasis - bbDev
+
+bbSqueezing = (bbUpper - bbLower) < sma((bbUpper - bbLower), 20) * 0.5
+bbBreakingOut = close > bbUpper
+
+// ATR (Volatility)
+atr = ta.atr(14)
+atrExpanding = atr > atr[5]
+
+// ==================================================================================
+// PRICE ACTION PATTERNS
+// ==================================================================================
+
+// Higher highs and higher lows
+higherHigh = high > high[1]
+higherLow = low > low[1]
+uptrend = higherHigh and higherLow
+
+// Bullish engulfing
+bullishEngulfing = close > open and close[1] < open[1] and close > open[1] and open < close[1]
+
+// Inside bar breakout
+insideBar = high < high[1] and low > low[1]
+insideBarBreakout = insideBar[1] and close > high[1]
+
+// Gap up with volume
+gapUp = low > high[1]
+gapUpStrong = gapUp and volumeExtreme
+
+// ==================================================================================
+// 12 ELITE CRITERIA FOR BUY SIGNAL
+// ==================================================================================
+
+int buyScore = 0
+
+// 1. WEEKLY TIMEFRAME BULLISH
+buyScore := buyScore + (weeklyBullish ? 1 : 0)
+
+// 2. DAILY TIMEFRAME BULLISH (Above all EMAs)
+buyScore := buyScore + (dailyBullish ? 1 : 0)
+
+// 3. 4H BULLISH STRUCTURE (Higher lows or breakout)
+buyScore := buyScore + ((higherLows_4H or bullishStructure_4H) ? 1 : 0)
+
+// 4. 1H TIMEFRAME BULLISH
+buyScore := buyScore + (hourlyBullish ? 1 : 0)
+
+// 5. RELATIVE STRENGTH (Outperforming market)
+buyScore := buyScore + (rsStrong ? 1 : 0)
+
+// 6. VOLUME SURGE (Institutional activity)
+buyScore := buyScore + (volumeExtreme or volumeSurge ? 1 : 0)
+
+// 7. MONEY FLOW POSITIVE (CMF + OBV)
+buyScore := buyScore + ((cmfStrong and obvTrend) ? 1 : 0)
+
+// 8. BASE BREAKOUT (Consolidation + breakout)
+buyScore := buyScore + ((consolidationBase or breakoutWithVolume) ? 1 : 0)
+
+// 9. MACD BULLISH (Momentum)
+buyScore := buyScore + ((macdBullish and macdRising) ? 1 : 0)
+
+// 10. ADX TRENDING (Strong trend in place)
+buyScore := buyScore + (trendingUp ? 1 : 0)
+
+// 11. RSI FAVORABLE (Oversold or early recovery)
+buyScore := buyScore + (rsiBullish ? 1 : 0)
+
+// 12. PRICE ACTION BULLISH (Patterns)
+buyScore := buyScore + ((bullishEngulfing or insideBarBreakout or gapUpStrong) ? 1 : 0)
+
+// ==================================================================================
+// SIGNAL GENERATION (EXTREME SELECTIVITY)
+// ==================================================================================
+
+// Only signal when ELITE criteria met
+buySignalRaw = buyScore >= minCriteria
+
+// Additional mandatory filters
+if requireRelativeStrength
+    buySignalRaw := buySignalRaw and rsPositive
+
+if requireBaseBreakout
+    buySignalRaw := buySignalRaw and (consolidationBase or breakoutWithVolume)
+
+// Prevent duplicate signals
+var bool inPosition = false
+var float entryPrice = na
+var int entryBar = na
+
+// Generate buy signal
+buySignal = buySignalRaw and not inPosition
+
+if buySignal
+    inPosition := true
+    entryPrice := close
+    entryBar := bar_index
+
+// ==================================================================================
+// EXIT CRITERIA (Let Winners Run)
+// ==================================================================================
+
+// Exit on major reversal only (not minor pullbacks)
+sellScore = 0
+
+// Exit conditions (conservative - hold through normal pullbacks)
+majorReversal = close < ema20_D and close < ema50_D  // Below major EMAs
+volumeDistribution = close < open and volumeExtreme  // Big red volume candle
+macdBearish = ta.crossunder(macdLine, signalLine) and macdLine < 0
+rsWeakness = relativeStrength < -10  // Massively underperforming market
+stopHit = inPosition and close < entryPrice * (1 - stopLossPct / 100)
+
+sellSignal = inPosition and (majorReversal or volumeDistribution or stopHit)
+
+if sellSignal
+    inPosition := false
+    entryPrice := na
+    entryBar := na
+
+// ==================================================================================
+// STOP LOSS AND TARGETS
+// ==================================================================================
+
+stopPrice = inPosition ? entryPrice * (1 - stopLossPct / 100) : na
+target1Price = inPosition ? entryPrice * (1 + target1Pct / 100) : na
+target2Price = inPosition ? entryPrice * (1 + target2Pct / 100) : na
+target3Price = inPosition ? entryPrice * (1 + target3Pct / 100) : na
+moonShotPrice = inPosition ? entryPrice * (1 + moonShotPct / 100) : na
+
+// ==================================================================================
+// PLOTTING
+// ==================================================================================
+
+// Plot EMAs on chart
+plot(ema20_D, "Daily EMA 20", color=color.new(color.blue, 50), linewidth=2)
+plot(ema50_D, "Daily EMA 50", color=color.new(color.orange, 50), linewidth=2)
+plot(ema200_D, "Daily EMA 200", color=color.new(color.red, 70), linewidth=3)
+
+// Plot base levels
+plot(not na(baseHigh) and inBase ? baseHigh : na, "Base High", color=color.new(color.yellow, 50), linewidth=1, style=plot.style_linebr)
+plot(not na(baseLow) and inBase ? baseLow : na, "Base Low", color=color.new(color.yellow, 50), linewidth=1, style=plot.style_linebr)
+
+// Plot signals
+plotshape(buySignal, "BUY", shape.triangleup, location.belowbar, buyColor, size=size.huge, text="BUY\nELITE")
+plotshape(sellSignal, "SELL", shape.triangledown, location.abovebar, sellColor, size=size.huge, text="SELL")
+
+// Plot stop and targets
+plot(stopPrice, "Stop Loss", color=color.new(color.red, 0), linewidth=3, style=plot.style_linebr)
+plot(target1Price, "T1 +25%", color=color.new(color.green, 0), linewidth=1, style=plot.style_linebr)
+plot(target2Price, "T2 +50%", color=color.new(color.green, 30), linewidth=2, style=plot.style_linebr)
+plot(target3Price, "T3 +100%", color=color.new(color.green, 50), linewidth=2, style=plot.style_linebr)
+plot(moonShotPrice, "MOON +200%", color=color.new(color.aqua, 30), linewidth=3, style=plot.style_linebr)
+
+// ==================================================================================
+// LABELS (Clean and Professional)
+// ==================================================================================
+
+if buySignal
+    string labelText = "🚀 ELITE BUY SIGNAL 🚀"
+    labelText := labelText + "\n" + str.tostring(buyScore) + "/12 CRITERIA MET"
+    labelText := labelText + "\n════════════════"
+    labelText := labelText + "\n💰 Entry: $" + str.tostring(close, format.mintick)
+    labelText := labelText + "\n🛑 Stop: $" + str.tostring(stopPrice, format.mintick) + " (-" + str.tostring(stopLossPct, "#.#") + "%)"
+    labelText := labelText + "\n════════════════"
+    labelText := labelText + "\n🎯 T1: $" + str.tostring(target1Price, format.mintick) + " (+" + str.tostring(target1Pct, "#") + "%) - Trim 25%"
+    labelText := labelText + "\n🎯 T2: $" + str.tostring(target2Price, format.mintick) + " (+" + str.tostring(target2Pct, "#") + "%) - Trim 25%"
+    labelText := labelText + "\n🎯 T3: $" + str.tostring(target3Price, format.mintick) + " (+" + str.tostring(target3Pct, "#") + "%) - Trim 25%"
+    labelText := labelText + "\n🌙 MOON: $" + str.tostring(moonShotPrice, format.mintick) + " (+" + str.tostring(moonShotPct, "#") + "%) - Let Ride"
+    labelText := labelText + "\n════════════════"
+    labelText := labelText + "\n📊 RS vs " + benchmarkSymbol + ": +" + str.tostring(relativeStrength, "#.#") + "%"
+    labelText := labelText + "\n📈 Vol Ratio: " + str.tostring(volumeRatio, "#.#") + "x"
+
+    label.new(bar_index, low * 0.98,
+             text=labelText,
+             color=buyColor, textcolor=color.white,
+             style=label.style_label_up, size=size.large,
+             textalign=text.align_left)
+
+if sellSignal
+    float profitPct = not na(entryPrice) ? (close - entryPrice) / entryPrice * 100 : 0
+    string labelText = "EXIT SIGNAL"
+    labelText := labelText + "\n════════════"
+    labelText := labelText + "\n💵 Exit: $" + str.tostring(close, format.mintick)
+    if not na(entryPrice)
+        labelText := labelText + "\n📊 P/L: " + str.tostring(profitPct, "#.#") + "%"
+
+    label.new(bar_index, high * 1.02,
+             text=labelText,
+             color=sellColor, textcolor=color.white,
+             style=label.style_label_down, size=size.large)
+
+// ==================================================================================
+// STATUS TABLE (Elite Dashboard)
+// ==================================================================================
+
+var table dashboard = table.new(position.top_right, 2, 16, border_width=2)
+
+if barstate.islast
+    // Header
+    table.cell(dashboard, 0, 0, "ELITE CRITERIA", bgcolor=color.new(color.gray, 50), text_color=color.white, text_size=size.normal)
+    table.cell(dashboard, 1, 0, "STATUS", bgcolor=color.new(color.gray, 50), text_color=color.white, text_size=size.normal)
+
+    // 1. Weekly Trend
+    table.cell(dashboard, 0, 1, "1️⃣ Weekly", text_color=color.white, text_size=size.small)
+    table.cell(dashboard, 1, 1, weeklyBullish ? "✓ BULLISH" : "✗ Wait",
+              bgcolor=weeklyBullish ? color.new(color.green, 60) : color.new(color.red, 80),
+              text_color=color.white, text_size=size.small)
+
+    // 2. Daily Trend
+    table.cell(dashboard, 0, 2, "2️⃣ Daily", text_color=color.white, text_size=size.small)
+    table.cell(dashboard, 1, 2, dailyBullish ? "✓ BULLISH" : "✗ Wait",
+              bgcolor=dailyBullish ? color.new(color.green, 60) : color.new(color.red, 80),
+              text_color=color.white, text_size=size.small)
+
+    // 3. 4H Structure
+    table.cell(dashboard, 0, 3, "3️⃣ 4H Structure", text_color=color.white, text_size=size.small)
+    table.cell(dashboard, 1, 3, (higherLows_4H or bullishStructure_4H) ? "✓ STRONG" : "✗ Weak",
+              bgcolor=(higherLows_4H or bullishStructure_4H) ? color.new(color.green, 60) : color.new(color.red, 80),
+              text_color=color.white, text_size=size.small)
+
+    // 4. 1H Trend
+    table.cell(dashboard, 0, 4, "4️⃣ 1H Trend", text_color=color.white, text_size=size.small)
+    table.cell(dashboard, 1, 4, hourlyBullish ? "✓ UP" : "✗ Down",
+              bgcolor=hourlyBullish ? color.new(color.green, 60) : color.new(color.red, 80),
+              text_color=color.white, text_size=size.small)
+
+    // 5. Relative Strength
+    table.cell(dashboard, 0, 5, "5️⃣ RS vs SPY", text_color=color.white, text_size=size.small)
+    table.cell(dashboard, 1, 5, rsStrong ? "✓ +" + str.tostring(relativeStrength, "#.#") + "%" : str.tostring(relativeStrength, "#.#") + "%",
+              bgcolor=rsStrong ? color.new(color.green, 60) : rsPositive ? color.new(color.yellow, 80) : color.new(color.red, 80),
+              text_color=color.white, text_size=size.small)
+
+    // 6. Volume
+    table.cell(dashboard, 0, 6, "6️⃣ Volume", text_color=color.white, text_size=size.small)
+    table.cell(dashboard, 1, 6, volumeExtreme ? "✓ " + str.tostring(volumeRatio, "#.#") + "x" : str.tostring(volumeRatio, "#.#") + "x",
+              bgcolor=volumeExtreme ? color.new(color.green, 60) : volumeHigh ? color.new(color.yellow, 80) : color.new(color.red, 80),
+              text_color=color.white, text_size=size.small)
+
+    // 7. Money Flow
+    table.cell(dashboard, 0, 7, "7️⃣ Money Flow", text_color=color.white, text_size=size.small)
+    table.cell(dashboard, 1, 7, (cmfStrong and obvTrend) ? "✓ BUYING" : cmfPositive ? "Neutral" : "✗ SELLING",
+              bgcolor=(cmfStrong and obvTrend) ? color.new(color.green, 60) : cmfPositive ? color.new(color.yellow, 80) : color.new(color.red, 80),
+              text_color=color.white, text_size=size.small)
+
+    // 8. Base/Breakout
+    table.cell(dashboard, 0, 8, "8️⃣ Base", text_color=color.white, text_size=size.small)
+    table.cell(dashboard, 1, 8, breakoutWithVolume ? "✓ BREAKOUT!" : consolidationBase ? "Building..." : "✗ No Base",
+              bgcolor=breakoutWithVolume ? color.new(color.green, 60) : consolidationBase ? color.new(color.yellow, 80) : color.new(color.red, 80),
+              text_color=color.white, text_size=size.small)
+
+    // 9. MACD
+    table.cell(dashboard, 0, 9, "9️⃣ MACD", text_color=color.white, text_size=size.small)
+    table.cell(dashboard, 1, 9, (macdBullish and macdRising) ? "✓ RISING" : macdBullish ? "Bullish" : "✗ Bearish",
+              bgcolor=(macdBullish and macdRising) ? color.new(color.green, 60) : macdBullish ? color.new(color.yellow, 80) : color.new(color.red, 80),
+              text_color=color.white, text_size=size.small)
+
+    // 10. ADX Trend
+    table.cell(dashboard, 0, 10, "🔟 ADX Trend", text_color=color.white, text_size=size.small)
+    table.cell(dashboard, 1, 10, trendingUp ? "✓ " + str.tostring(adx, "#.#") : str.tostring(adx, "#.#"),
+              bgcolor=trendingUp ? color.new(color.green, 60) : adxStrong ? color.new(color.yellow, 80) : color.new(color.red, 80),
+              text_color=color.white, text_size=size.small)
+
+    // 11. RSI
+    table.cell(dashboard, 0, 11, "1️⃣1️⃣ RSI", text_color=color.white, text_size=size.small)
+    table.cell(dashboard, 1, 11, rsiBullish ? "✓ " + str.tostring(rsi, "#.#") : str.tostring(rsi, "#.#"),
+              bgcolor=rsiBullish ? color.new(color.green, 60) : color.new(color.red, 80),
+              text_color=color.white, text_size=size.small)
+
+    // 12. Price Action
+    table.cell(dashboard, 0, 12, "1️⃣2️⃣ Pattern", text_color=color.white, text_size=size.small)
+    table.cell(dashboard, 1, 12, (bullishEngulfing or insideBarBreakout or gapUpStrong) ? "✓ BULLISH" : "Neutral",
+              bgcolor=(bullishEngulfing or insideBarBreakout or gapUpStrong) ? color.new(color.green, 60) : color.new(color.gray, 80),
+              text_color=color.white, text_size=size.small)
+
+    // Separator
+    table.cell(dashboard, 0, 13, "═══════════", bgcolor=color.new(color.gray, 90), text_color=color.white, text_size=size.tiny)
+    table.cell(dashboard, 1, 13, "═══════════", bgcolor=color.new(color.gray, 90), text_color=color.white, text_size=size.tiny)
+
+    // Total Score
+    table.cell(dashboard, 0, 14, "TOTAL SCORE", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.normal)
+    table.cell(dashboard, 1, 14, str.tostring(buyScore) + "/12",
+              bgcolor=buyScore >= 9 ? color.new(color.green, 40) : buyScore >= 7 ? color.new(color.yellow, 60) : color.new(color.red, 70),
+              text_color=color.white, text_size=size.large)
+
+    // Signal Status
+    table.cell(dashboard, 0, 15, "SIGNAL", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.normal)
+    table.cell(dashboard, 1, 15, buyScore >= minCriteria ? "🚀 BUY READY" : "⏳ WAIT",
+              bgcolor=buyScore >= minCriteria ? color.new(color.green, 30) : color.new(color.gray, 70),
+              text_color=color.white, text_size=size.large)
+
+// ==================================================================================
+// ALERTS
+// ==================================================================================
+
+alertcondition(buySignal, "ELITE BUY SIGNAL", "🚀 ELITE BUY - " + str.tostring(buyScore) + "/12 criteria - EXTREME CONVICTION!")
+alertcondition(sellSignal, "EXIT SIGNAL", "EXIT Signal - Close position")
+alertcondition(close >= target1Price and not na(target1Price), "Target 1 Hit", "🎯 TARGET 1 (+25%) - Trim 25%")
+alertcondition(close >= target2Price and not na(target2Price), "Target 2 Hit", "🎯 TARGET 2 (+50%) - Trim 25%")
+alertcondition(close >= target3Price and not na(target3Price), "Target 3 Hit", "🎯 TARGET 3 (+100%) - Trim 25%")
+alertcondition(close >= moonShotPrice and not na(moonShotPrice), "MOON SHOT", "🌙 +200% MOON SHOT ACHIEVED!")
+
+// ==================================================================================
+// END OF ELITE INDICATOR
+// ==================================================================================
