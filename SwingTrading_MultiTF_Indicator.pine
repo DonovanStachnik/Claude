@@ -332,7 +332,7 @@ plot(showTargets and not na(target3Price) ? target3Price : na, "Target 3: +100% 
 // Labels for signals (Sleek black boxes with colored outlines)
 if buySignal
     string labelText = "BUY"
-    labelText := labelText + "\nScore: " + str.tostring(buyScore) + "/10"
+    labelText := labelText + "\nScore: " + str.tostring(buyScore) + "/10 ✓"
     labelText := labelText + "\n──────────"
     labelText := labelText + "\nEntry: $" + str.tostring(close, format.mintick)
     labelText := labelText + "\nStop: $" + str.tostring(close * (1 - stopLossPct / 100), format.mintick)
@@ -340,6 +340,8 @@ if buySignal
     labelText := labelText + "\nT1 (+20%): $" + str.tostring(close * (1 + firstTargetPct / 100), format.mintick)
     labelText := labelText + "\nT2 (+50%): $" + str.tostring(close * (1 + secondTargetPct / 100), format.mintick)
     labelText := labelText + "\nT3 (+100%): $" + str.tostring(close * (1 + thirdTargetPct / 100), format.mintick)
+    labelText := labelText + "\n──────────"
+    labelText := labelText + "\n🎯 BUY"
 
     label.new(bar_index, low,
              text=labelText,
@@ -348,17 +350,46 @@ if buySignal
 
 if sellSignal
     string labelText = "SELL"
-    labelText := labelText + "\nScore: " + str.tostring(sellScore) + "/10"
+    labelText := labelText + "\nScore: " + str.tostring(sellScore) + "/10 ✓"
     labelText := labelText + "\n──────────"
     labelText := labelText + "\nExit: $" + str.tostring(close, format.mintick)
     if not na(entryPrice)
         float profitPct = (close - entryPrice) / entryPrice * 100
         labelText := labelText + "\nProfit: " + str.tostring(profitPct, "#.##") + "%"
+    labelText := labelText + "\n──────────"
+    labelText := labelText + "\n🚫 SELL"
 
     label.new(bar_index, high,
              text=labelText,
              color=color.new(color.black, 10), textcolor=sellOutlineColor,
              style=label.style_label_down, size=size.small)
+
+// Show current recommendation on chart (always visible at bottom)
+var table recommendTable = table.new(position.bottom_center, 3, 2, border_width=2)
+
+if barstate.islast
+    // Header
+    table.cell(recommendTable, 0, 0, "BUY", bgcolor=color.new(buyOutlineColor, buyScore >= minCriteria ? 30 : 80),
+              text_color=color.white, text_size=size.normal)
+    table.cell(recommendTable, 1, 0, "HOLD", bgcolor=color.new(color.gray, 70),
+              text_color=color.white, text_size=size.normal)
+    table.cell(recommendTable, 2, 0, "SELL", bgcolor=color.new(sellOutlineColor, sellScore >= minCriteria ? 30 : 80),
+              text_color=color.white, text_size=size.normal)
+
+    // Current recommendation
+    string buyRec = buyScore >= minCriteria ? "✓" : str.tostring(buyScore) + "/10"
+    string holdRec = inPosition ? "✓ IN" : (buyScore < minCriteria and sellScore < minCriteria) ? "✓ WAIT" : "–"
+    string sellRec = sellScore >= minCriteria ? "✓" : str.tostring(sellScore) + "/10"
+
+    table.cell(recommendTable, 0, 1, buyRec,
+              bgcolor=buyScore >= minCriteria ? color.new(buyOutlineColor, 50) : color.new(color.gray, 80),
+              text_color=color.white, text_size=size.normal)
+    table.cell(recommendTable, 1, 1, holdRec,
+              bgcolor=color.new(color.gray, 70),
+              text_color=color.white, text_size=size.normal)
+    table.cell(recommendTable, 2, 1, sellRec,
+              bgcolor=sellScore >= minCriteria ? color.new(sellOutlineColor, 50) : color.new(color.gray, 80),
+              text_color=color.white, text_size=size.normal)
 
 // ==================================================================================
 // ALERTS
