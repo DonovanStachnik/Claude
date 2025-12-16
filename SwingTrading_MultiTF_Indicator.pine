@@ -1,0 +1,440 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © SwingTradingStrategy
+
+//@version=5
+indicator("Multi-Timeframe Swing Trading Strategy", overlay=true, max_labels_count=500, max_lines_count=500)
+
+// ==================================================================================
+// SWING TRADING STRATEGY - HIGH PROBABILITY SIGNALS
+// ==================================================================================
+// Strategy: 1-8 week swing trades with strict risk management
+// Sizing: 5-8% per trade (manual execution)
+// Entry: Multi-timeframe alignment (1D trend + 4H confirm + 1H entry)
+// Exit: -10% hard stop, trim 30-40% at +10-15%, trail remainder
+// Minimum: 4+ criteria must align for signal
+// ==================================================================================
+
+// INPUT PARAMETERS
+// ==================================================================================
+
+// Timeframe Settings
+string tf1h = input.timeframe("60", "1H Timeframe", group="Timeframes")
+string tf4h = input.timeframe("240", "4H Timeframe", group="Timeframes")
+string tf1d = input.timeframe("D", "1D Timeframe", group="Timeframes")
+
+// Indicator Settings
+int rsiLength = input.int(14, "RSI Length", minval=1, group="Indicators")
+int rsiOversold = input.int(30, "RSI Oversold", minval=0, maxval=50, group="Indicators")
+int rsiOverbought = input.int(70, "RSI Overbought", minval=50, maxval=100, group="Indicators")
+
+int macdFast = input.int(12, "MACD Fast", minval=1, group="Indicators")
+int macdSlow = input.int(26, "MACD Slow", minval=1, group="Indicators")
+int macdSignal = input.int(9, "MACD Signal", minval=1, group="Indicators")
+
+int stochLength = input.int(14, "Stochastic Length", minval=1, group="Indicators")
+int stochK = input.int(3, "Stochastic %K Smooth", minval=1, group="Indicators")
+int stochD = input.int(3, "Stochastic %D Smooth", minval=1, group="Indicators")
+
+int bbLength = input.int(20, "Bollinger Bands Length", minval=1, group="Indicators")
+float bbMult = input.float(2.0, "Bollinger Bands Multiplier", minval=0.1, group="Indicators")
+
+int adxLength = input.int(14, "ADX Length", minval=1, group="Indicators")
+float adxThreshold = input.float(25, "ADX Trend Strength Threshold", minval=0, group="Indicators")
+
+int volumeLength = input.int(20, "Volume MA Length", minval=1, group="Indicators")
+float volumeIncrease = input.float(20, "Volume Increase % Required", minval=0, group="Indicators")
+
+// Suite Diamonds Settings (Custom momentum indicator)
+int suiteFastLength = input.int(8, "Suite Fast EMA", minval=1, group="Suite Diamonds")
+int suiteSlowLength = input.int(21, "Suite Slow EMA", minval=1, group="Suite Diamonds")
+int suiteSignalLength = input.int(5, "Suite Signal SMA", minval=1, group="Suite Diamonds")
+
+// Green Mountain Settings (Trend strength indicator)
+int gmTrendLength = input.int(50, "Green Mountain Trend Length", minval=1, group="Green Mountain")
+int gmMomentumLength = input.int(14, "Green Mountain Momentum Length", minval=1, group="Green Mountain")
+
+// Risk Management
+float stopLossPct = input.float(10.0, "Stop Loss %", minval=0.1, maxval=50, group="Risk Management")
+float firstTargetPct = input.float(10.0, "First Target % (Trim Entry)", minval=0.1, group="Risk Management")
+float secondTargetPct = input.float(15.0, "Second Target % (Full Trim)", minval=0.1, group="Risk Management")
+
+// Signal Settings
+int minCriteria = input.int(4, "Minimum Criteria Required (out of 10)", minval=1, maxval=10, group="Signal Settings")
+bool showStopLoss = input.bool(true, "Show Stop Loss Lines", group="Signal Settings")
+bool showTargets = input.bool(true, "Show Target Lines", group="Signal Settings")
+
+// Visual Settings
+color buyColor = input.color(color.new(#00CED1, 0), "Buy Signal Color (Tealish Blue)", group="Visual")
+color sellColor = input.color(color.new(#FF1493, 0), "Sell Signal Color (Pink)", group="Visual")
+
+// ==================================================================================
+// HELPER FUNCTIONS
+// ==================================================================================
+
+// Calculate EMA
+emaCalc(src, length) =>
+    ta.ema(src, length)
+
+// Calculate SMA
+smaCalc(src, length) =>
+    ta.sma(src, length)
+
+// ==================================================================================
+// SUITE DIAMONDS INDICATOR
+// ==================================================================================
+// Blue diamonds (2+) = buy signal, Pink diamonds (2+) = sell signal
+// Above zero = late trend, Below zero = early reversal (prefer below for entries)
+
+suiteFastEma = emaCalc(close, suiteFastLength)
+suiteSlowEma = emaCalc(close, suiteSlowLength)
+suiteMacd = suiteFastEma - suiteSlowEma
+suiteSignal = smaCalc(suiteMacd, suiteSignalLength)
+suiteHistogram = suiteMacd - suiteSignal
+
+// Suite Diamond Signals
+suiteBlueDiamond = ta.crossover(suiteMacd, suiteSignal) and suiteMacd > 0  // Late uptrend
+suiteBlueDiamondEarly = ta.crossover(suiteMacd, suiteSignal) and suiteMacd <= 0  // Early reversal (preferred)
+suitePinkDiamond = ta.crossunder(suiteMacd, suiteSignal) and suiteMacd < 0  // Late downtrend
+suitePinkDiamondEarly = ta.crossunder(suiteMacd, suiteSignal) and suiteMacd >= 0  // Early reversal
+
+// Count recent diamonds (last 5 bars)
+var int blueDiamondCount = 0
+var int pinkDiamondCount = 0
+
+if suiteBlueDiamond or suiteBlueDiamondEarly
+    blueDiamondCount := 1
+    pinkDiamondCount := 0
+else if suitePinkDiamond or suitePinkDiamondEarly
+    pinkDiamondCount := 1
+    blueDiamondCount := 0
+else
+    if bar_index > 0
+        blueDiamondCount := blueDiamondCount > 0 ? blueDiamondCount + 1 : 0
+        pinkDiamondCount := pinkDiamondCount > 0 ? pinkDiamondCount + 1 : 0
+    if blueDiamondCount > 5
+        blueDiamondCount := 0
+    if pinkDiamondCount > 5
+        pinkDiamondCount := 0
+
+suiteBuySignal = blueDiamondCount >= 1 and blueDiamondCount <= 5
+suiteSellSignal = pinkDiamondCount >= 1 and pinkDiamondCount <= 5
+
+// ==================================================================================
+// GREEN MOUNTAIN INDICATOR
+// ==================================================================================
+// Green mountain = uptrend strength; loss of green = exhaustion
+
+gmTrend = emaCalc(close, gmTrendLength)
+gmMomentum = close - gmTrend
+gmStrength = gmMomentum / gmTrend * 100
+
+// Green mountain conditions
+greenMountainUp = gmStrength > 0 and gmStrength > gmStrength[1]  // Building strength
+greenMountainLoss = gmStrength < gmStrength[1] and gmStrength[1] > 0  // Losing strength (exhaustion)
+
+// ==================================================================================
+// VWAP CALCULATION
+// ==================================================================================
+
+vwapValue = ta.vwap(hlc3)
+vwapReclaim = ta.crossover(close, vwapValue)  // Price reclaims VWAP (bullish 1H entry)
+vwapLoss = ta.crossunder(close, vwapValue)  // Price loses VWAP (bearish)
+
+// ==================================================================================
+// VOLUME ANALYSIS
+// ==================================================================================
+
+volumeMA = smaCalc(volume, volumeLength)
+volumeIncreased = volume > volumeMA * (1 + volumeIncrease / 100)
+
+// ==================================================================================
+// RSI CALCULATION
+// ==================================================================================
+
+rsiValue = ta.rsi(close, rsiLength)
+rsiOversoldCond = rsiValue < rsiOversold
+rsiOverboughtCond = rsiValue > rsiOverbought
+
+// ==================================================================================
+// MACD CALCULATION
+// ==================================================================================
+
+[macdLine, signalLine, _] = ta.macd(close, macdFast, macdSlow, macdSignal)
+macdBullishCross = ta.crossover(macdLine, signalLine)
+macdBearishCross = ta.crossunder(macdLine, signalLine)
+
+// ==================================================================================
+// STOCHASTIC CALCULATION
+// ==================================================================================
+
+stochK_value = ta.sma(ta.stoch(close, high, low, stochLength), stochK)
+stochD_value = ta.sma(stochK_value, stochD)
+
+stochBounce = stochK_value > 20 and stochK_value < 80 and ta.crossover(stochK_value, stochD_value)
+stochTop = stochK_value > 20 and stochK_value < 80 and ta.crossunder(stochK_value, stochD_value)
+
+// ==================================================================================
+// BOLLINGER BANDS CALCULATION
+// ==================================================================================
+
+bbBasis = smaCalc(close, bbLength)
+bbDev = bbMult * ta.stdev(close, bbLength)
+bbUpper = bbBasis + bbDev
+bbLower = bbBasis - bbDev
+bbWidth = bbUpper - bbLower
+bbWidthMA = smaCalc(bbWidth, bbLength)
+
+bbSqueeze = bbWidth < bbWidthMA * 0.5  // Tight squeeze = potential breakout
+bbBreakoutUp = ta.crossover(close, bbUpper)
+bbBreakoutDown = ta.crossunder(close, bbLower)
+
+// ==================================================================================
+// ADX CALCULATION (Trend Strength)
+// ==================================================================================
+
+[diPlus, diMinus, adxValue] = ta.dmi(adxLength, adxLength)
+adxStrong = adxValue > adxThreshold
+
+// ==================================================================================
+// MULTI-TIMEFRAME ANALYSIS
+// ==================================================================================
+
+// 1H Timeframe (Entry signals)
+vwap1H = request.security(syminfo.tickerid, tf1h, vwapValue)
+vwapReclaim1H = request.security(syminfo.tickerid, tf1h, vwapReclaim)
+rsi1H = request.security(syminfo.tickerid, tf1h, rsiValue)
+macdBullish1H = request.security(syminfo.tickerid, tf1h, macdBullishCross)
+volume1H = request.security(syminfo.tickerid, tf1h, volumeIncreased)
+
+// 4H Timeframe (Confirmation - higher lows for longs)
+high4H = request.security(syminfo.tickerid, tf4h, high)
+low4H = request.security(syminfo.tickerid, tf4h, low)
+close4H = request.security(syminfo.tickerid, tf4h, close)
+higherLow4H = low4H > low4H[1] and low4H[1] > low4H[2]  // Forming higher lows
+lowerHigh4H = high4H < high4H[1] and high4H[1] < high4H[2]  // Forming lower highs
+
+// 1D Timeframe (Trend direction)
+ema50_1D = request.security(syminfo.tickerid, tf1d, emaCalc(close, 50))
+ema200_1D = request.security(syminfo.tickerid, tf1d, emaCalc(close, 200))
+close1D = request.security(syminfo.tickerid, tf1d, close)
+
+dailyUptrend = close1D > ema50_1D and ema50_1D > ema200_1D  // Clear uptrend
+dailyDowntrend = close1D < ema50_1D and ema50_1D < ema200_1D  // Clear downtrend
+dailyReversal = (close1D < ema50_1D and close1D > ema200_1D) or (close1D > ema50_1D and close1D < ema200_1D)  // Reversal zone
+
+// ==================================================================================
+// CONFLUENCE SCORING SYSTEM (10 CRITERIA)
+// ==================================================================================
+
+// BUY Criteria
+int buyScore = 0
+buyScore := buyScore + (dailyUptrend or dailyReversal ? 1 : 0)  // 1. Daily trend favorable or reversal
+buyScore := buyScore + (higherLow4H ? 1 : 0)  // 2. 4H forming higher lows
+buyScore := buyScore + (vwapReclaim1H ? 1 : 0)  // 3. 1H VWAP reclaim
+buyScore := buyScore + (volumeIncreased ? 1 : 0)  // 4. Volume 20%+ above average
+buyScore := buyScore + (suiteBuySignal ? 1 : 0)  // 5. Suite diamonds bullish
+buyScore := buyScore + (greenMountainUp ? 1 : 0)  // 6. Green mountain strength
+buyScore := buyScore + (rsiOversoldCond or (rsiValue > rsiOversold and rsiValue < 50) ? 1 : 0)  // 7. RSI oversold or recovering
+buyScore := buyScore + (macdBullishCross ? 1 : 0)  // 8. MACD bullish cross
+buyScore := buyScore + (stochBounce ? 1 : 0)  // 9. Stochastic bounce
+buyScore := buyScore + (adxStrong ? 1 : 0)  // 10. ADX shows trend strength
+
+// SELL Criteria
+int sellScore = 0
+sellScore := sellScore + (dailyDowntrend or dailyReversal ? 1 : 0)  // 1. Daily trend down or reversal
+sellScore := sellScore + (lowerHigh4H ? 1 : 0)  // 2. 4H forming lower highs
+sellScore := sellScore + (vwapLoss ? 1 : 0)  // 3. Price loses VWAP
+sellScore := sellScore + (volumeIncreased ? 1 : 0)  // 4. Volume 20%+ above average
+sellScore := sellScore + (suiteSellSignal ? 1 : 0)  // 5. Suite diamonds bearish
+sellScore := sellScore + (greenMountainLoss ? 1 : 0)  // 6. Green mountain exhaustion
+sellScore := sellScore + (rsiOverboughtCond ? 1 : 0)  // 7. RSI overbought
+sellScore := sellScore + (macdBearishCross ? 1 : 0)  // 8. MACD bearish cross
+sellScore := sellScore + (stochTop ? 1 : 0)  // 9. Stochastic topping
+sellScore := sellScore + (adxStrong ? 1 : 0)  // 10. ADX shows trend strength
+
+// ==================================================================================
+// SIGNAL GENERATION
+// ==================================================================================
+
+// Generate signals only when minimum criteria met
+buySignal = buyScore >= minCriteria
+sellSignal = sellScore >= minCriteria
+
+// Prevent duplicate signals
+var bool inPosition = false
+var float entryPrice = na
+var int signalBar = na
+
+if buySignal and not inPosition
+    inPosition := true
+    entryPrice := close
+    signalBar := bar_index
+
+if sellSignal and inPosition
+    inPosition := false
+    entryPrice := na
+    signalBar := na
+
+// ==================================================================================
+// STOP LOSS AND TARGET CALCULATIONS
+// ==================================================================================
+
+stopLossPrice = inPosition ? entryPrice * (1 - stopLossPct / 100) : na
+target1Price = inPosition ? entryPrice * (1 + firstTargetPct / 100) : na
+target2Price = inPosition ? entryPrice * (1 + secondTargetPct / 100) : na
+
+// ==================================================================================
+// PLOTTING AND VISUAL SIGNALS
+// ==================================================================================
+
+// Plot VWAP
+plot(vwapValue, "VWAP", color=color.new(color.yellow, 50), linewidth=2)
+
+// Plot Buy/Sell Signals
+plotshape(buySignal and not inPosition[1], "BUY SIGNAL", shape.triangleup, location.belowbar,
+         buyColor, size=size.large, text="BUY HERE")
+plotshape(sellSignal and inPosition[1], "SELL SIGNAL", shape.triangledown, location.abovebar,
+         sellColor, size=size.large, text="SELL HERE")
+
+// Plot Stop Loss
+plot(showStopLoss and not na(stopLossPrice) ? stopLossPrice : na, "Stop Loss",
+     color=color.new(color.red, 0), linewidth=2, style=plot.style_linebr)
+
+// Plot Targets
+plot(showTargets and not na(target1Price) ? target1Price : na, "Target 1 (Trim 30-40%)",
+     color=color.new(color.green, 0), linewidth=1, style=plot.style_linebr)
+plot(showTargets and not na(target2Price) ? target2Price : na, "Target 2 (Full Trim)",
+     color=color.new(color.green, 30), linewidth=2, style=plot.style_linebr)
+
+// Labels for signals
+if buySignal and not inPosition[1]
+    label.new(bar_index, low,
+             text="BUY\nScore: " + str.tostring(buyScore) + "/10\nEntry: " + str.tostring(close, format.mintick) +
+             "\nStop: " + str.tostring(close * (1 - stopLossPct / 100), format.mintick) +
+             "\nTarget 1: " + str.tostring(close * (1 + firstTargetPct / 100), format.mintick) +
+             "\nTarget 2: " + str.tostring(close * (1 + secondTargetPct / 100), format.mintick),
+             color=buyColor, textcolor=color.white, style=label.style_label_up, size=size.normal)
+
+if sellSignal and inPosition[1]
+    label.new(bar_index, high,
+             text="SELL\nScore: " + str.tostring(sellScore) + "/10\nExit: " + str.tostring(close, format.mintick),
+             color=sellColor, textcolor=color.white, style=label.style_label_down, size=size.normal)
+
+// ==================================================================================
+// ALERTS
+// ==================================================================================
+
+alertcondition(buySignal and not inPosition[1], "BUY Signal", "BUY SIGNAL - Score: {{plot_0}}/10")
+alertcondition(sellSignal and inPosition[1], "SELL Signal", "SELL SIGNAL - Score: {{plot_0}}/10")
+alertcondition(close <= stopLossPrice and not na(stopLossPrice), "Stop Loss Hit", "STOP LOSS HIT!")
+alertcondition(close >= target1Price and not na(target1Price), "Target 1 Reached", "TARGET 1 REACHED - Trim 30-40%")
+alertcondition(close >= target2Price and not na(target2Price), "Target 2 Reached", "TARGET 2 REACHED - Full Trim")
+
+// ==================================================================================
+// TABLE DISPLAY (Current Status)
+// ==================================================================================
+
+var table statusTable = table.new(position.top_right, 2, 12, border_width=2)
+
+if barstate.islast
+    table.cell(statusTable, 0, 0, "Indicator", bgcolor=color.new(color.gray, 70), text_color=color.white)
+    table.cell(statusTable, 1, 0, "Status", bgcolor=color.new(color.gray, 70), text_color=color.white)
+
+    table.cell(statusTable, 0, 1, "1D Trend", text_color=color.white)
+    table.cell(statusTable, 1, 1, dailyUptrend ? "UP ✓" : dailyDowntrend ? "DOWN ✓" : "REVERSAL",
+              bgcolor=dailyUptrend ? color.new(color.green, 70) : dailyDowntrend ? color.new(color.red, 70) : color.new(color.orange, 70),
+              text_color=color.white)
+
+    table.cell(statusTable, 0, 2, "4H Structure", text_color=color.white)
+    table.cell(statusTable, 1, 2, higherLow4H ? "Higher Lows ✓" : lowerHigh4H ? "Lower Highs ✓" : "Neutral",
+              bgcolor=higherLow4H ? color.new(color.green, 70) : lowerHigh4H ? color.new(color.red, 70) : color.new(color.gray, 70),
+              text_color=color.white)
+
+    table.cell(statusTable, 0, 3, "VWAP", text_color=color.white)
+    table.cell(statusTable, 1, 3, close > vwapValue ? "Above ✓" : "Below",
+              bgcolor=close > vwapValue ? color.new(color.green, 70) : color.new(color.red, 70),
+              text_color=color.white)
+
+    table.cell(statusTable, 0, 4, "Volume", text_color=color.white)
+    table.cell(statusTable, 1, 4, volumeIncreased ? "High ✓" : "Normal",
+              bgcolor=volumeIncreased ? color.new(color.green, 70) : color.new(color.gray, 70),
+              text_color=color.white)
+
+    table.cell(statusTable, 0, 5, "Suite Diamonds", text_color=color.white)
+    table.cell(statusTable, 1, 5, suiteBuySignal ? "Bullish ✓" : suiteSellSignal ? "Bearish ✓" : "Neutral",
+              bgcolor=suiteBuySignal ? color.new(color.green, 70) : suiteSellSignal ? color.new(color.red, 70) : color.new(color.gray, 70),
+              text_color=color.white)
+
+    table.cell(statusTable, 0, 6, "Green Mountain", text_color=color.white)
+    table.cell(statusTable, 1, 6, greenMountainUp ? "Strong ✓" : greenMountainLoss ? "Weak ✓" : "Neutral",
+              bgcolor=greenMountainUp ? color.new(color.green, 70) : greenMountainLoss ? color.new(color.red, 70) : color.new(color.gray, 70),
+              text_color=color.white)
+
+    table.cell(statusTable, 0, 7, "RSI", text_color=color.white)
+    table.cell(statusTable, 1, 7, str.tostring(rsiValue, "#.##"),
+              bgcolor=rsiOversoldCond ? color.new(color.green, 70) : rsiOverboughtCond ? color.new(color.red, 70) : color.new(color.gray, 70),
+              text_color=color.white)
+
+    table.cell(statusTable, 0, 8, "MACD", text_color=color.white)
+    table.cell(statusTable, 1, 8, macdLine > signalLine ? "Bullish ✓" : "Bearish",
+              bgcolor=macdLine > signalLine ? color.new(color.green, 70) : color.new(color.red, 70),
+              text_color=color.white)
+
+    table.cell(statusTable, 0, 9, "ADX", text_color=color.white)
+    table.cell(statusTable, 1, 9, adxStrong ? str.tostring(adxValue, "#.##") + " ✓" : str.tostring(adxValue, "#.##"),
+              bgcolor=adxStrong ? color.new(color.green, 70) : color.new(color.gray, 70),
+              text_color=color.white)
+
+    table.cell(statusTable, 0, 10, "Buy Score", text_color=color.white, bgcolor=color.new(buyColor, 70))
+    table.cell(statusTable, 1, 10, str.tostring(buyScore) + "/" + str.tostring(minCriteria) + " min",
+              bgcolor=buyScore >= minCriteria ? color.new(color.green, 50) : color.new(color.gray, 70),
+              text_color=color.white)
+
+    table.cell(statusTable, 0, 11, "Sell Score", text_color=color.white, bgcolor=color.new(sellColor, 70))
+    table.cell(statusTable, 1, 11, str.tostring(sellScore) + "/" + str.tostring(minCriteria) + " min",
+              bgcolor=sellScore >= minCriteria ? color.new(color.red, 50) : color.new(color.gray, 70),
+              text_color=color.white)
+
+// ==================================================================================
+// NOTES AND ADJUSTMENTS
+// ==================================================================================
+//
+// PARAMETER TUNING FOR DIFFERENT ASSETS:
+// ---------------------------------------
+// - For more volatile stocks (like SOUN, CLSK): Consider increasing stopLossPct to 12-15%
+// - For less volatile stocks: Can tighten stops to 7-8%
+// - For higher accuracy: Increase minCriteria to 5 or 6 (fewer signals, higher quality)
+// - For more signals: Decrease minCriteria to 3 (more signals, may reduce accuracy)
+//
+// SUITE DIAMONDS:
+// - Faster signals: Decrease suiteFastLength and suiteSlowLength
+// - Slower signals: Increase suiteFastLength and suiteSlowLength
+//
+// GREEN MOUNTAIN:
+// - More sensitive: Decrease gmTrendLength to 30-40
+// - Less sensitive: Increase gmTrendLength to 100+
+//
+// VOLUME:
+// - Require stronger volume: Increase volumeIncrease to 30-50%
+// - Allow weaker volume: Decrease volumeIncrease to 10-15%
+//
+// ADX:
+// - Require stronger trends: Increase adxThreshold to 30-35
+// - Allow weaker trends: Decrease adxThreshold to 20
+//
+// BACKTESTING TIPS:
+// - Test on historical data for your specific tickers (SOUN, UPWK, CLSK)
+// - Aim for 80%+ win rate but be realistic - 60-70% is excellent
+// - Track: Win rate, Average R:R, Maximum drawdown, Consecutive losses
+// - Adjust parameters based on results, not emotions
+//
+// EXECUTION CHECKLIST (Manual):
+// 1. Wait for signal on chart
+// 2. Verify all 4+ criteria are met (check table)
+// 3. Enter position with 5-8% of account
+// 4. Set hard stop at -10% immediately
+// 5. Set alerts for +10% and +15% targets
+// 6. Trim 30-40% at first target, move stop to breakeven
+// 7. Trail remainder with ATR or key support levels
+//
+// ==================================================================================
