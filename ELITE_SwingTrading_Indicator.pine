@@ -510,12 +510,12 @@ if barstate.islast
 // ALERTS
 // ==================================================================================
 
-alertcondition(buySignal, "ELITE BUY SIGNAL", "🚀 ELITE BUY - " + str.tostring(buyScore) + "/12 criteria - EXTREME CONVICTION!")
-alertcondition(sellSignal, "EXIT SIGNAL", "EXIT Signal - Close position")
-alertcondition(close >= target1Price and not na(target1Price), "Target 1 Hit", "🎯 TARGET 1 (+25%) - Trim 25%")
-alertcondition(close >= target2Price and not na(target2Price), "Target 2 Hit", "🎯 TARGET 2 (+50%) - Trim 25%")
-alertcondition(close >= target3Price and not na(target3Price), "Target 3 Hit", "🎯 TARGET 3 (+100%) - Trim 25%")
-alertcondition(close >= moonShotPrice and not na(moonShotPrice), "MOON SHOT", "🌙 +200% MOON SHOT ACHIEVED!")
+alertcondition(buySignal, "ELITE BUY SIGNAL", "🚀 ELITE BUY SIGNAL - High conviction swing trade setup detected!")
+alertcondition(sellSignal, "EXIT SIGNAL", "EXIT Signal - Close position now")
+alertcondition(close >= target1Price and not na(target1Price), "Target 1 Hit", "🎯 TARGET 1 (+25%) - Trim 25% of position")
+alertcondition(close >= target2Price and not na(target2Price), "Target 2 Hit", "🎯 TARGET 2 (+50%) - Trim another 25%")
+alertcondition(close >= target3Price and not na(target3Price), "Target 3 Hit", "🎯 TARGET 3 (+100%) - Trim another 25%")
+alertcondition(close >= moonShotPrice and not na(moonShotPrice), "MOON SHOT", "🌙 MOON SHOT +200% ACHIEVED - Consider trailing stop")
 
 // ==================================================================================
 // END OF ELITE INDICATOR
