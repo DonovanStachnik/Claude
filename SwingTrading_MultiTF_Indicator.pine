@@ -432,12 +432,12 @@ if barstate.islast
               text_color=color.white, text_size=size.tiny)
 
     table.cell(statusTable, 0, 11, "Buy Score", text_color=color.white, bgcolor=color.new(buyOutlineColor, 70), text_size=size.tiny)
-    table.cell(statusTable, 1, 11, str.tostring(buyScore) + "/" + str.tostring(minCriteria) + " min",
+    table.cell(statusTable, 1, 11, str.tostring(buyScore) + "/10",
               bgcolor=buyScore >= minCriteria ? color.new(color.green, 50) : color.new(color.gray, 70),
               text_color=color.white, text_size=size.tiny)
 
     table.cell(statusTable, 0, 12, "Sell Score", text_color=color.white, bgcolor=color.new(sellOutlineColor, 70), text_size=size.tiny)
-    table.cell(statusTable, 1, 12, str.tostring(sellScore) + "/" + str.tostring(minCriteria) + " min",
+    table.cell(statusTable, 1, 12, str.tostring(sellScore) + "/10",
               bgcolor=sellScore >= minCriteria ? color.new(color.red, 50) : color.new(color.gray, 70),
               text_color=color.white, text_size=size.tiny)
 
