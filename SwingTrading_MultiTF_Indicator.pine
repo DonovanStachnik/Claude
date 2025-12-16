@@ -362,12 +362,12 @@ if sellSignal
 // ALERTS
 // ==================================================================================
 
-alertcondition(buySignal, "BUY Signal", "BUY SIGNAL - Score: {{plot_0}}/10 - SWING TRADE ALERT")
-alertcondition(sellSignal, "SELL Signal", "SELL SIGNAL - Score: {{plot_0}}/10")
-alertcondition(close <= stopLossPrice and not na(stopLossPrice), "Stop Loss Hit", "STOP LOSS HIT -10%!")
-alertcondition(close >= target1Price and not na(target1Price), "Target 1 Reached", "TARGET 1 (+20%) - Trim 30%")
-alertcondition(close >= target2Price and not na(target2Price), "Target 2 Reached", "TARGET 2 (+50%) - Trim 40%")
-alertcondition(close >= target3Price and not na(target3Price), "Target 3 Reached", "TARGET 3 (+100%) - MOON SHOT!")
+alertcondition(buySignal, "BUY Signal", "BUY SIGNAL - High quality swing setup detected!")
+alertcondition(sellSignal, "SELL Signal", "SELL SIGNAL - Exit position now")
+alertcondition(close <= stopLossPrice and not na(stopLossPrice), "Stop Loss Hit", "STOP LOSS HIT - Exit immediately!")
+alertcondition(close >= target1Price and not na(target1Price), "Target 1 Reached", "TARGET 1 (+20%) - Trim 30% of position")
+alertcondition(close >= target2Price and not na(target2Price), "Target 2 Reached", "TARGET 2 (+50%) - Trim 40% more")
+alertcondition(close >= target3Price and not na(target3Price), "Target 3 Reached", "TARGET 3 (+100%) - MOON SHOT achieved!")
 
 // ==================================================================================
 // TABLE DISPLAY (Current Status)
