@@ -67,8 +67,8 @@ bool showTargets = input.bool(true, "Show Target Lines", group="Signal Settings"
 int minBarsFromLast = input.int(20, "Min Bars Between Signals (Avoid Overtrading)", minval=1, group="Signal Settings")
 
 // Visual Settings
-color buyColor = input.color(color.new(#00CED1, 0), "Buy Signal Color (Tealish Blue)", group="Visual")
-color sellColor = input.color(color.new(#FF1493, 0), "Sell Signal Color (Pink)", group="Visual")
+color buyOutlineColor = input.color(color.new(#10cab8, 0), "Buy Outline Color (Green)", group="Visual")
+color sellOutlineColor = input.color(color.new(#8080ff, 0), "Sell Outline Color (Purple)", group="Visual")
 
 // ==================================================================================
 // HELPER FUNCTIONS
@@ -313,9 +313,9 @@ plot(vwapValue, "VWAP", color=color.new(color.yellow, 50), linewidth=2)
 
 // Plot Buy/Sell Signals
 plotshape(buySignal and not inPosition[1], "BUY SIGNAL", shape.triangleup, location.belowbar,
-         buyColor, size=size.large, text="BUY HERE")
+         buyOutlineColor, size=size.normal, text="BUY")
 plotshape(sellSignal and inPosition[1], "SELL SIGNAL", shape.triangledown, location.abovebar,
-         sellColor, size=size.large, text="SELL HERE")
+         sellOutlineColor, size=size.normal, text="SELL")
 
 // Plot Stop Loss
 plot(showStopLoss and not na(stopLossPrice) ? stopLossPrice : na, "Stop Loss -10%",
@@ -329,26 +329,27 @@ plot(showTargets and not na(target2Price) ? target2Price : na, "Target 2: +50% (
 plot(showTargets and not na(target3Price) ? target3Price : na, "Target 3: +100% (Moon)",
      color=color.new(color.green, 50), linewidth=2, style=plot.style_linebr)
 
-// Labels for signals (Improved formatting)
+// Labels for signals (Sleek black boxes with colored outlines)
 if buySignal
     string labelText = "BUY"
     labelText := labelText + "\nScore: " + str.tostring(buyScore) + "/10"
-    labelText := labelText + "\n━━━━━━━━━━━━"
+    labelText := labelText + "\n──────────"
     labelText := labelText + "\nEntry: $" + str.tostring(close, format.mintick)
     labelText := labelText + "\nStop: $" + str.tostring(close * (1 - stopLossPct / 100), format.mintick)
-    labelText := labelText + "\n━━━━━━━━━━━━"
+    labelText := labelText + "\n──────────"
     labelText := labelText + "\nT1 (+20%): $" + str.tostring(close * (1 + firstTargetPct / 100), format.mintick)
     labelText := labelText + "\nT2 (+50%): $" + str.tostring(close * (1 + secondTargetPct / 100), format.mintick)
     labelText := labelText + "\nT3 (+100%): $" + str.tostring(close * (1 + thirdTargetPct / 100), format.mintick)
 
     label.new(bar_index, low,
              text=labelText,
-             color=buyColor, textcolor=color.white, style=label.style_label_up, size=size.normal)
+             color=color.new(color.black, 10), textcolor=buyOutlineColor,
+             style=label.style_label_up, size=size.small)
 
 if sellSignal
     string labelText = "SELL"
     labelText := labelText + "\nScore: " + str.tostring(sellScore) + "/10"
-    labelText := labelText + "\n━━━━━━━━━━━━"
+    labelText := labelText + "\n──────────"
     labelText := labelText + "\nExit: $" + str.tostring(close, format.mintick)
     if not na(entryPrice)
         float profitPct = (close - entryPrice) / entryPrice * 100
@@ -356,7 +357,8 @@ if sellSignal
 
     label.new(bar_index, high,
              text=labelText,
-             color=sellColor, textcolor=color.white, style=label.style_label_down, size=size.normal)
+             color=color.new(color.black, 10), textcolor=sellOutlineColor,
+             style=label.style_label_down, size=size.small)
 
 // ==================================================================================
 // ALERTS
@@ -376,68 +378,68 @@ alertcondition(close >= target3Price and not na(target3Price), "Target 3 Reached
 var table statusTable = table.new(position.top_right, 2, 13, border_width=2)
 
 if barstate.islast
-    table.cell(statusTable, 0, 0, "Indicator", bgcolor=color.new(color.gray, 70), text_color=color.white)
-    table.cell(statusTable, 1, 0, "Status", bgcolor=color.new(color.gray, 70), text_color=color.white)
+    table.cell(statusTable, 0, 0, "Indicator", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.small)
+    table.cell(statusTable, 1, 0, "Status", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.small)
 
-    table.cell(statusTable, 0, 1, "1W Trend", text_color=color.white)
+    table.cell(statusTable, 0, 1, "1W Trend", text_color=color.white, text_size=size.tiny)
     table.cell(statusTable, 1, 1, weeklyUptrend ? "UP ✓" : weeklyDowntrend ? "DOWN ✓" : weeklyOversold ? "OVERSOLD ✓" : weeklyOverbought ? "OVERBOUGHT" : "NEUTRAL",
               bgcolor=weeklyUptrend ? color.new(color.green, 70) : weeklyDowntrend ? color.new(color.red, 70) : weeklyOversold ? color.new(color.green, 50) : weeklyOverbought ? color.new(color.red, 50) : color.new(color.gray, 70),
-              text_color=color.white)
+              text_color=color.white, text_size=size.tiny)
 
-    table.cell(statusTable, 0, 2, "1D Trend", text_color=color.white)
+    table.cell(statusTable, 0, 2, "1D Trend", text_color=color.white, text_size=size.tiny)
     table.cell(statusTable, 1, 2, dailyUptrend ? "UP ✓" : dailyDowntrend ? "DOWN ✓" : "REVERSAL",
               bgcolor=dailyUptrend ? color.new(color.green, 70) : dailyDowntrend ? color.new(color.red, 70) : color.new(color.orange, 70),
-              text_color=color.white)
+              text_color=color.white, text_size=size.tiny)
 
-    table.cell(statusTable, 0, 3, "4H Structure", text_color=color.white)
+    table.cell(statusTable, 0, 3, "4H Structure", text_color=color.white, text_size=size.tiny)
     table.cell(statusTable, 1, 3, higherLow4H ? "Higher Lows ✓" : lowerHigh4H ? "Lower Highs ✓" : "Neutral",
               bgcolor=higherLow4H ? color.new(color.green, 70) : lowerHigh4H ? color.new(color.red, 70) : color.new(color.gray, 70),
-              text_color=color.white)
+              text_color=color.white, text_size=size.tiny)
 
-    table.cell(statusTable, 0, 4, "VWAP", text_color=color.white)
+    table.cell(statusTable, 0, 4, "VWAP", text_color=color.white, text_size=size.tiny)
     table.cell(statusTable, 1, 4, close > vwapValue ? "Above ✓" : "Below",
               bgcolor=close > vwapValue ? color.new(color.green, 70) : color.new(color.red, 70),
-              text_color=color.white)
+              text_color=color.white, text_size=size.tiny)
 
-    table.cell(statusTable, 0, 5, "Volume", text_color=color.white)
+    table.cell(statusTable, 0, 5, "Volume", text_color=color.white, text_size=size.tiny)
     table.cell(statusTable, 1, 5, volumeIncreased ? "High ✓" : "Normal",
               bgcolor=volumeIncreased ? color.new(color.green, 70) : color.new(color.gray, 70),
-              text_color=color.white)
+              text_color=color.white, text_size=size.tiny)
 
-    table.cell(statusTable, 0, 6, "Suite Diamonds", text_color=color.white)
+    table.cell(statusTable, 0, 6, "Suite Diamonds", text_color=color.white, text_size=size.tiny)
     table.cell(statusTable, 1, 6, suiteBuySignal ? "Bullish ✓" : suiteSellSignal ? "Bearish ✓" : "Neutral",
               bgcolor=suiteBuySignal ? color.new(color.green, 70) : suiteSellSignal ? color.new(color.red, 70) : color.new(color.gray, 70),
-              text_color=color.white)
+              text_color=color.white, text_size=size.tiny)
 
-    table.cell(statusTable, 0, 7, "Green Mountain", text_color=color.white)
+    table.cell(statusTable, 0, 7, "Green Mountain", text_color=color.white, text_size=size.tiny)
     table.cell(statusTable, 1, 7, greenMountainUp ? "Strong ✓" : greenMountainLoss ? "Weak ✓" : "Neutral",
               bgcolor=greenMountainUp ? color.new(color.green, 70) : greenMountainLoss ? color.new(color.red, 70) : color.new(color.gray, 70),
-              text_color=color.white)
+              text_color=color.white, text_size=size.tiny)
 
-    table.cell(statusTable, 0, 8, "RSI", text_color=color.white)
+    table.cell(statusTable, 0, 8, "RSI", text_color=color.white, text_size=size.tiny)
     table.cell(statusTable, 1, 8, str.tostring(rsiValue, "#.##"),
               bgcolor=rsiOversoldCond ? color.new(color.green, 70) : rsiOverboughtCond ? color.new(color.red, 70) : color.new(color.gray, 70),
-              text_color=color.white)
+              text_color=color.white, text_size=size.tiny)
 
-    table.cell(statusTable, 0, 9, "MACD", text_color=color.white)
+    table.cell(statusTable, 0, 9, "MACD", text_color=color.white, text_size=size.tiny)
     table.cell(statusTable, 1, 9, macdLine > signalLine ? "Bullish ✓" : "Bearish",
               bgcolor=macdLine > signalLine ? color.new(color.green, 70) : color.new(color.red, 70),
-              text_color=color.white)
+              text_color=color.white, text_size=size.tiny)
 
-    table.cell(statusTable, 0, 10, "ADX", text_color=color.white)
+    table.cell(statusTable, 0, 10, "ADX", text_color=color.white, text_size=size.tiny)
     table.cell(statusTable, 1, 10, adxStrong ? str.tostring(adxValue, "#.##") + " ✓" : str.tostring(adxValue, "#.##"),
               bgcolor=adxStrong ? color.new(color.green, 70) : color.new(color.gray, 70),
-              text_color=color.white)
+              text_color=color.white, text_size=size.tiny)
 
-    table.cell(statusTable, 0, 11, "Buy Score", text_color=color.white, bgcolor=color.new(buyColor, 70))
+    table.cell(statusTable, 0, 11, "Buy Score", text_color=color.white, bgcolor=color.new(buyOutlineColor, 70), text_size=size.tiny)
     table.cell(statusTable, 1, 11, str.tostring(buyScore) + "/" + str.tostring(minCriteria) + " min",
               bgcolor=buyScore >= minCriteria ? color.new(color.green, 50) : color.new(color.gray, 70),
-              text_color=color.white)
+              text_color=color.white, text_size=size.tiny)
 
-    table.cell(statusTable, 0, 12, "Sell Score", text_color=color.white, bgcolor=color.new(sellColor, 70))
+    table.cell(statusTable, 0, 12, "Sell Score", text_color=color.white, bgcolor=color.new(sellOutlineColor, 70), text_size=size.tiny)
     table.cell(statusTable, 1, 12, str.tostring(sellScore) + "/" + str.tostring(minCriteria) + " min",
               bgcolor=sellScore >= minCriteria ? color.new(color.red, 50) : color.new(color.gray, 70),
-              text_color=color.white)
+              text_color=color.white, text_size=size.tiny)
 
 // ==================================================================================
 // NOTES AND ADJUSTMENTS
