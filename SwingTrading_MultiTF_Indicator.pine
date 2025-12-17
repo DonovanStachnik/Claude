@@ -412,12 +412,12 @@ if barstate.islast
               bgcolor=volumeIncreased ? color.new(color.green, 70) : color.new(color.gray, 70),
               text_color=color.white, text_size=size.tiny)
 
-    table.cell(statusTable, 0, 6, "Suite Diamonds", text_color=color.white, text_size=size.tiny)
+    table.cell(statusTable, 0, 6, "EMA Cross (8/21)", text_color=color.white, text_size=size.tiny)
     table.cell(statusTable, 1, 6, suiteBuySignal ? "Bullish ✓" : suiteSellSignal ? "Bearish ✓" : "Neutral",
               bgcolor=suiteBuySignal ? color.new(color.green, 70) : suiteSellSignal ? color.new(color.red, 70) : color.new(color.gray, 70),
               text_color=color.white, text_size=size.tiny)
 
-    table.cell(statusTable, 0, 7, "Green Mountain", text_color=color.white, text_size=size.tiny)
+    table.cell(statusTable, 0, 7, "Trend Strength", text_color=color.white, text_size=size.tiny)
     table.cell(statusTable, 1, 7, greenMountainUp ? "Strong ✓" : greenMountainLoss ? "Weak ✓" : "Neutral",
               bgcolor=greenMountainUp ? color.new(color.green, 70) : greenMountainLoss ? color.new(color.red, 70) : color.new(color.gray, 70),
               text_color=color.white, text_size=size.tiny)
@@ -455,7 +455,7 @@ if barstate.islast
               text_color=color.white, text_size=size.tiny)
 
     table.cell(statusTable, 0, 14, "HOLD", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-    string holdRec = inPosition ? "✓ IN" : (buyScore < minCriteria and sellScore < minCriteria) ? "✓ WAIT" : "–"
+    string holdRec = inPosition ? "✓" : (buyScore < minCriteria and sellScore < minCriteria) ? "✓ WAIT" : "–"
     table.cell(statusTable, 1, 14, holdRec,
               bgcolor=color.new(color.gray, 70),
               text_color=color.white, text_size=size.tiny)
