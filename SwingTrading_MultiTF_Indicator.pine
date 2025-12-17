@@ -364,32 +364,7 @@ if sellSignal
              color=color.new(color.black, 10), textcolor=sellOutlineColor,
              style=label.style_label_down, size=size.small)
 
-// Show current recommendation on chart (always visible at bottom)
-var table recommendTable = table.new(position.bottom_center, 3, 2, border_width=2)
-
-if barstate.islast
-    // Header
-    table.cell(recommendTable, 0, 0, "BUY", bgcolor=color.new(buyOutlineColor, buyScore >= minCriteria ? 30 : 80),
-              text_color=color.white, text_size=size.normal)
-    table.cell(recommendTable, 1, 0, "HOLD", bgcolor=color.new(color.gray, 70),
-              text_color=color.white, text_size=size.normal)
-    table.cell(recommendTable, 2, 0, "SELL", bgcolor=color.new(sellOutlineColor, sellScore >= minCriteria ? 30 : 80),
-              text_color=color.white, text_size=size.normal)
-
-    // Current recommendation
-    string buyRec = buyScore >= minCriteria ? "✓" : str.tostring(buyScore) + "/10"
-    string holdRec = inPosition ? "✓ IN" : (buyScore < minCriteria and sellScore < minCriteria) ? "✓ WAIT" : "–"
-    string sellRec = sellScore >= minCriteria ? "✓" : str.tostring(sellScore) + "/10"
-
-    table.cell(recommendTable, 0, 1, buyRec,
-              bgcolor=buyScore >= minCriteria ? color.new(buyOutlineColor, 50) : color.new(color.gray, 80),
-              text_color=color.white, text_size=size.normal)
-    table.cell(recommendTable, 1, 1, holdRec,
-              bgcolor=color.new(color.gray, 70),
-              text_color=color.white, text_size=size.normal)
-    table.cell(recommendTable, 2, 1, sellRec,
-              bgcolor=sellScore >= minCriteria ? color.new(sellOutlineColor, 50) : color.new(color.gray, 80),
-              text_color=color.white, text_size=size.normal)
+// Buy/Hold/Sell recommendation now integrated into status table below
 
 // ==================================================================================
 // ALERTS
@@ -406,7 +381,7 @@ alertcondition(close >= target3Price and not na(target3Price), "Target 3 Reached
 // TABLE DISPLAY (Current Status)
 // ==================================================================================
 
-var table statusTable = table.new(position.top_right, 2, 13, border_width=2)
+var table statusTable = table.new(position.top_right, 2, 16, border_width=2)
 
 if barstate.islast
     table.cell(statusTable, 0, 0, "Indicator", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.small)
@@ -470,6 +445,25 @@ if barstate.islast
     table.cell(statusTable, 0, 12, "Sell Score", text_color=color.white, bgcolor=color.new(sellOutlineColor, 70), text_size=size.tiny)
     table.cell(statusTable, 1, 12, str.tostring(sellScore) + "/10",
               bgcolor=sellScore >= minCriteria ? color.new(color.red, 50) : color.new(color.gray, 70),
+              text_color=color.white, text_size=size.tiny)
+
+    // Buy/Hold/Sell Recommendation Section
+    table.cell(statusTable, 0, 13, "BUY", text_color=color.white, bgcolor=color.new(buyOutlineColor, 70), text_size=size.tiny)
+    string buyRec = buyScore >= minCriteria ? "✓" : str.tostring(buyScore) + "/10"
+    table.cell(statusTable, 1, 13, buyRec,
+              bgcolor=buyScore >= minCriteria ? color.new(buyOutlineColor, 50) : color.new(color.gray, 70),
+              text_color=color.white, text_size=size.tiny)
+
+    table.cell(statusTable, 0, 14, "HOLD", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
+    string holdRec = inPosition ? "✓ IN" : (buyScore < minCriteria and sellScore < minCriteria) ? "✓ WAIT" : "–"
+    table.cell(statusTable, 1, 14, holdRec,
+              bgcolor=color.new(color.gray, 70),
+              text_color=color.white, text_size=size.tiny)
+
+    table.cell(statusTable, 0, 15, "SELL", text_color=color.white, bgcolor=color.new(sellOutlineColor, 70), text_size=size.tiny)
+    string sellRec = sellScore >= minCriteria ? "✓" : str.tostring(sellScore) + "/10"
+    table.cell(statusTable, 1, 15, sellRec,
+              bgcolor=sellScore >= minCriteria ? color.new(sellOutlineColor, 50) : color.new(color.gray, 70),
               text_color=color.white, text_size=size.tiny)
 
 // ==================================================================================
