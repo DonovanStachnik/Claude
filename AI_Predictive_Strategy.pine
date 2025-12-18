@@ -673,14 +673,14 @@ plot(ema21, "EMA 21", color=color.new(color.blue, 0), linewidth=1)
 plot(ema50, "EMA 50", color=color.new(color.orange, 0), linewidth=2)
 plot(ema200, "EMA 200", color=color.new(color.red, 0), linewidth=2)
 
-// SUITE DIAMONDS - Visual markers showing momentum shifts (PRIMARY SIGNALS)
-// Blue Diamonds = Bullish momentum (appear near local LOWS/bottoms)
-plotshape(suiteBlueDiamond or suiteBlueDiamondEarly, "Blue Diamond", shape.diamond, location.belowbar,
-         color.new(#00CED1, 0), size=size.small, text="◆")
+// SUITE DIAMONDS - Professional visual markers for momentum shifts
+// Gold Circles = Bullish momentum (appear near local LOWS/bottoms)
+plotshape(suiteBlueDiamond or suiteBlueDiamondEarly, "Bullish Reversal", shape.circle, location.belowbar,
+         color.new(#FFD700, 0), size=size.tiny)
 
-// Pink Diamonds = Bearish momentum (appear near local HIGHS/tops)
-plotshape(suitePinkDiamond or suitePinkDiamondEarly, "Pink Diamond", shape.diamond, location.abovebar,
-         color.new(#FF1493, 0), size=size.small, text="◆")
+// Crimson Circles = Bearish momentum (appear near local HIGHS/tops)
+plotshape(suitePinkDiamond or suitePinkDiamondEarly, "Bearish Reversal", shape.circle, location.abovebar,
+         color.new(#DC143C, 0), size=size.tiny)
 
 // BUY/SELL Entry/Exit Signals (when all criteria align)
 plotshape(buySignal, "BUY ENTRY", shape.triangleup, location.belowbar, buyColor, size=size.normal)
