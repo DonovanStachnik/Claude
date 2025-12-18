@@ -29,11 +29,15 @@ string tf1w = input.timeframe("W", "1W Timeframe", group="Timeframes")
 
 // Strategy Settings
 int minConfidence = input.int(40, "Minimum Confidence Score (0-100)", minval=0, maxval=100, group="Strategy")
-bool useMultiTimeframe = input.bool(false, "Require Multi-Timeframe Alignment", group="Strategy")
+bool useMultiTimeframe = input.bool(false, "Require Multi-Timeframe Alignment (4H/1D/1W)", group="Strategy")
 bool usePatternRecognition = input.bool(false, "Use Pattern Recognition", group="Strategy")
-bool useMarketRegime = input.bool(false, "Use Market Regime Filter", group="Strategy")
+bool useMarketRegime = input.bool(false, "Use Market Regime Filter (Broad Market)", group="Strategy")
 bool catchReversals = input.bool(true, "Catch Local Lows/Highs (Reversals)", group="Strategy")
 bool aggressiveMode = input.bool(true, "Aggressive Mode (More Signals)", group="Strategy")
+bool useDiamondDurability = input.bool(true, "Diamond Durability (10+ Bars)", group="Strategy")
+bool requireGreenMountain = input.bool(false, "Require Green Mountain", group="Strategy")
+bool pricePsychology = input.bool(false, "Price Psychology (<$10 Filter)", group="Strategy")
+int minVolumeAvg = input.int(100, "Minimum Volume Average (K shares)", minval=0, group="Strategy")
 
 // Risk Management
 float stopLossPct = input.float(10.0, "Stop Loss %", minval=0.1, maxval=50, group="Risk Management")
@@ -82,6 +86,49 @@ emaTrendLongBull = close > ema100 and close > ema200
 emaTrendShortBear = close < ema8 and ema8 < ema13 and ema13 < ema21
 emaTrendMediumBear = close < ema50 and ema50 < ema50[1]
 emaTrendLongBear = close < ema100 and close < ema200
+
+// SUITE DIAMONDS INDICATOR (Custom Momentum)
+// Diamond Confirmations - proprietary EMA crossover system
+suiteFastLength = 8
+suiteSlowLength = 21
+suiteSignalLength = 5
+
+suiteFastEma = emaCalc(close, suiteFastLength)
+suiteSlowEma = emaCalc(close, suiteSlowLength)
+suiteMacd = suiteFastEma - suiteSlowEma
+suiteSignal = smaCalc(suiteMacd, suiteSignalLength)
+suiteHistogram = suiteMacd - suiteSignal
+
+// Diamond Signals (Blue = Bullish, Pink = Bearish)
+suiteBlueDiamond = ta.crossover(suiteMacd, suiteSignal) and suiteMacd > 0
+suiteBlueDiamondEarly = ta.crossover(suiteMacd, suiteSignal) and suiteMacd <= 0
+suitePinkDiamond = ta.crossunder(suiteMacd, suiteSignal) and suiteMacd < 0
+suitePinkDiamondEarly = ta.crossunder(suiteMacd, suiteSignal) and suiteMacd >= 0
+
+// Diamond Durability - Track how long diamond signal has persisted
+var int blueDiamondDuration = 0
+var int pinkDiamondDuration = 0
+
+if suiteBlueDiamond or suiteBlueDiamondEarly
+    blueDiamondDuration := 1
+    pinkDiamondDuration := 0
+else if suitePinkDiamond or suitePinkDiamondEarly
+    pinkDiamondDuration := 1
+    blueDiamondDuration := 0
+else
+    blueDiamondDuration := blueDiamondDuration > 0 ? blueDiamondDuration + 1 : 0
+    pinkDiamondDuration := pinkDiamondDuration > 0 ? pinkDiamondDuration + 1 : 0
+
+// Diamond Durability Check (above 10 bars = durable)
+diamondDurable = blueDiamondDuration >= 10
+suiteBuySignal = blueDiamondDuration >= 1 and blueDiamondDuration <= 20
+suiteSellSignal = pinkDiamondDuration >= 1 and pinkDiamondDuration <= 20
+
+// GREEN MOUNTAIN INDICATOR (Trend Strength)
+gmTrendLength = 50
+gmStrength = (close - emaCalc(close, gmTrendLength)) / emaCalc(close, gmTrendLength) * 100
+greenMountainUp = gmStrength > 0 and gmStrength > gmStrength[1]
+greenMountainLoss = gmStrength < gmStrength[1] and gmStrength[1] > 0
 
 // MACD - Multiple timeframes
 [macdLine, macdSignal, macdHist] = ta.macd(close, 12, 26, 9)
@@ -548,10 +595,29 @@ bool simpleRsiSell = aggressiveMode and rsi14 > 70 and close < open
 bool emaCrossUp = aggressiveMode and ta.crossover(close, ema21)
 bool emaCrossDown = aggressiveMode and ta.crossunder(close, ema21)
 
+// SCREENING CRITERIA FILTERS
+bool passScreening = true
+
+// Diamond Durability (10+ Bars)
+if useDiamondDurability
+    passScreening := passScreening and diamondDurable
+
+// Green Mountain (Must be Green/Positive)
+if requireGreenMountain
+    passScreening := passScreening and greenMountainUp
+
+// Price Psychology (<$10 filter)
+if pricePsychology
+    passScreening := passScreening and close < 10
+
+// Volume Average (>100K shares minimum)
+if minVolumeAvg > 0
+    passScreening := passScreening and volumeMA > (minVolumeAvg * 1000)
+
 // BUY Signal Requirements (VERY Aggressive)
-buySignalRaw = confidenceScore >= minConfidence or localLowReversal or simpleRsiBuy or emaCrossUp
+buySignalRaw = (confidenceScore >= minConfidence or localLowReversal or simpleRsiBuy or emaCrossUp) and passScreening
 if useMultiTimeframe
-    buySignalRaw := buySignalRaw and (weeklyBullish or weeklyOversold) and dailyBullish
+    buySignalRaw := buySignalRaw and (weeklyBullish or weeklyOversold) and dailyBullish and h4Bullish
 if useMarketRegime
     buySignalRaw := buySignalRaw and (marketBullPhase or marketNeutral)
 if usePatternRecognition
