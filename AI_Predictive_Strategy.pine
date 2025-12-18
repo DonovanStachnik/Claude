@@ -28,11 +28,12 @@ string tf1d = input.timeframe("D", "1D Timeframe", group="Timeframes")
 string tf1w = input.timeframe("W", "1W Timeframe", group="Timeframes")
 
 // Strategy Settings
-int minConfidence = input.int(60, "Minimum Confidence Score (0-100)", minval=0, maxval=100, group="Strategy")
+int minConfidence = input.int(40, "Minimum Confidence Score (0-100)", minval=0, maxval=100, group="Strategy")
 bool useMultiTimeframe = input.bool(false, "Require Multi-Timeframe Alignment", group="Strategy")
 bool usePatternRecognition = input.bool(false, "Use Pattern Recognition", group="Strategy")
 bool useMarketRegime = input.bool(false, "Use Market Regime Filter", group="Strategy")
 bool catchReversals = input.bool(true, "Catch Local Lows/Highs (Reversals)", group="Strategy")
+bool aggressiveMode = input.bool(true, "Aggressive Mode (More Signals)", group="Strategy")
 
 // Risk Management
 float stopLossPct = input.float(10.0, "Stop Loss %", minval=0.1, maxval=50, group="Risk Management")
@@ -515,34 +516,40 @@ sellConfidenceScore = sellTrendScore + sellMomentumScore + sellVolumeScore + sel
 bool localLowReversal = false
 if catchReversals
     // Price bouncing off oversold RSI
-    rsiBounce = rsi14 < 35 and rsi14 > rsi14[1] and rsi14[1] > rsi14[2]
+    rsiBounce = rsi14 < 40 and rsi14 > rsi14[1]
     // Stochastic bounce
-    stochBounce = stochK < 25 and ta.crossover(stochK, stochD)
-    // Price making higher low while RSI making higher low (bullish divergence)
-    priceHigherLow = low > low[5] and close < close[5]
-    rsiHigherLow = rsi14 > rsi14[5]
-    bullishDivergence = priceHigherLow and rsiHigherLow
-    // Volume spike at low
-    volumeSpike = volume > volumeMA * 1.5 and close > open
+    stochBounce = stochK < 30 and stochK > stochK[1]
+    // Bullish candlestick patterns
+    bullishCandle = hammer or bullishEngulfing or morningStar
+    // Price near support with bullish momentum
+    nearSupportBounce = nearSupport and close > open and close > close[1]
 
-    localLowReversal := (rsiBounce or stochBounce or bullishDivergence) and (volumeIncreased or volumeSpike)
+    // Much simpler - ANY bullish signal triggers
+    localLowReversal := rsiBounce or stochBounce or bullishCandle or nearSupportBounce
 
 // LOCAL HIGH DETECTION (Reversal Sell Signals)
 bool localHighReversal = false
 if catchReversals
     // Price rejecting overbought RSI
-    rsiRejection = rsi14 > 65 and rsi14 < rsi14[1] and rsi14[1] < rsi14[2]
+    rsiRejection = rsi14 > 60 and rsi14 < rsi14[1]
     // Stochastic rejection
-    stochRejection = stochK > 75 and ta.crossunder(stochK, stochD)
-    // Price making lower high while RSI making lower high (bearish divergence)
-    priceLowerHigh = high < high[5] and close > close[5]
-    rsiLowerHigh = rsi14 < rsi14[5]
-    bearishDivergence = priceLowerHigh and rsiLowerHigh
+    stochRejection = stochK > 70 and stochK < stochK[1]
+    // Bearish candlestick patterns
+    bearishCandle = shootingStar or bearishEngulfing or eveningStar
+    // Price near resistance with bearish momentum
+    nearResistanceReject = nearResistance and close < open and close < close[1]
 
-    localHighReversal := (rsiRejection or stochRejection or bearishDivergence) and volumeIncreased
+    // Much simpler - ANY bearish signal triggers
+    localHighReversal := rsiRejection or stochRejection or bearishCandle or nearResistanceReject
 
-// BUY Signal Requirements (More Aggressive)
-buySignalRaw = confidenceScore >= minConfidence or localLowReversal
+// AGGRESSIVE MODE - Simple price action signals
+bool simpleRsiBuy = aggressiveMode and rsi14 < 30 and close > open
+bool simpleRsiSell = aggressiveMode and rsi14 > 70 and close < open
+bool emaCrossUp = aggressiveMode and ta.crossover(close, ema21)
+bool emaCrossDown = aggressiveMode and ta.crossunder(close, ema21)
+
+// BUY Signal Requirements (VERY Aggressive)
+buySignalRaw = confidenceScore >= minConfidence or localLowReversal or simpleRsiBuy or emaCrossUp
 if useMultiTimeframe
     buySignalRaw := buySignalRaw and (weeklyBullish or weeklyOversold) and dailyBullish
 if useMarketRegime
@@ -550,14 +557,14 @@ if useMarketRegime
 if usePatternRecognition
     buySignalRaw := buySignalRaw and (tightBase or bullishStructure)
 
-// SELL Signal Requirements (More Aggressive)
-sellSignalRaw = sellConfidenceScore >= 15 or rsiOverbought or localHighReversal
+// SELL Signal Requirements (VERY Aggressive)
+sellSignalRaw = sellConfidenceScore >= 10 or localHighReversal or simpleRsiSell or emaCrossDown
 
-// Prevent signal spam - minimum 3 bars between signals (reduced from 5)
+// Prevent signal spam - minimum 2 bars between signals (very aggressive)
 var int barsSinceLastSignal = 0
 barsSinceLastSignal := buySignalRaw or sellSignalRaw ? 0 : barsSinceLastSignal + 1
 
-buySignal = buySignalRaw and barsSinceLastSignal > 3 and strategy.position_size == 0
+buySignal = buySignalRaw and barsSinceLastSignal > 2 and strategy.position_size == 0
 sellSignal = sellSignalRaw and strategy.position_size > 0
 
 // ==================================================================================
