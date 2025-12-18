@@ -43,8 +43,7 @@ float trailingStopPct = input.float(5.0, "Trailing Stop %", minval=0.1, group="R
 
 // Display Settings
 bool showConfidence = input.bool(true, "Show Confidence Scores", group="Display")
-bool showBacktestStats = input.bool(true, "Show Backtest Statistics", group="Display")
-bool showIndicatorTable = input.bool(true, "Show Indicator Status Table", group="Display")
+bool showBacktestStats = input.bool(true, "Show AI Predictor Table", group="Display")
 
 // Visual Settings
 color buyColor = input.color(color.new(#10cab8, 0), "Buy Signal Color", group="Visual")
@@ -570,26 +569,28 @@ plot(ema21, "EMA 21", color=color.new(color.blue, 0), linewidth=1)
 plot(ema50, "EMA 50", color=color.new(color.orange, 0), linewidth=2)
 plot(ema200, "EMA 200", color=color.new(color.red, 0), linewidth=2)
 
-// Plot Buy/Sell signals
-plotshape(buySignal, "BUY", shape.triangleup, location.belowbar, buyColor, size=size.small)
-plotshape(sellSignal, "SELL", shape.triangledown, location.abovebar, sellColor, size=size.small)
+// Plot Buy/Sell signals - LARGE and PROMINENT
+plotshape(buySignal, "BUY", shape.triangleup, location.belowbar, buyColor, size=size.large)
+plotshape(sellSignal, "SELL", shape.triangledown, location.abovebar, sellColor, size=size.large)
 
-// Signal Labels with Confidence
+// Signal Labels with Confidence - PROMINENT
 if buySignal and showConfidence
     label.new(bar_index, low,
-             text="BUY\n" + str.tostring(confidenceScore) + "% Confidence\nEntry: $" + str.tostring(close, format.mintick),
-             color=color.new(color.black, 10),
-             textcolor=buyColor,
+             text="🎯 BUY SIGNAL 🎯\n" + str.tostring(confidenceScore) + "% Confidence\n$" + str.tostring(close, format.mintick),
+             color=color.new(buyColor, 0),
+             textcolor=color.white,
              style=label.style_label_up,
-             size=size.normal)
+             size=size.large,
+             textalign=text.align_center)
 
 if sellSignal and showConfidence
     label.new(bar_index, high,
-             text="SELL\nExit: $" + str.tostring(close, format.mintick),
-             color=color.new(color.black, 10),
-             textcolor=sellColor,
+             text="🚫 SELL SIGNAL 🚫\n$" + str.tostring(close, format.mintick),
+             color=color.new(sellColor, 0),
+             textcolor=color.white,
              style=label.style_label_down,
-             size=size.normal)
+             size=size.large,
+             textalign=text.align_center)
 
 // ==================================================================================
 // STATISTICS TABLE
@@ -644,71 +645,7 @@ if showBacktestStats
                   bgcolor=buySignal ? color.new(buyColor, 50) : sellSignal ? color.new(sellColor, 50) : color.new(color.gray, 70),
                   text_color=color.white, text_size=size.tiny)
 
-// ==================================================================================
-// INDICATOR DETAIL TABLE (Optional)
-// ==================================================================================
-
-if showIndicatorTable
-    var table indTable = table.new(position.bottom_right, 2, 12, border_width=1)
-
-    if barstate.islast
-        table.cell(indTable, 0, 0, "Indicator", bgcolor=color.new(color.gray, 80), text_color=color.white, text_size=size.tiny)
-        table.cell(indTable, 1, 0, "Status", bgcolor=color.new(color.gray, 80), text_color=color.white, text_size=size.tiny)
-
-        table.cell(indTable, 0, 1, "EMA Trend", text_color=color.white, text_size=size.tiny)
-        table.cell(indTable, 1, 1, emaTrendShortBull ? "Bull ✓" : emaTrendShortBear ? "Bear" : "Neutral",
-                  bgcolor=emaTrendShortBull ? color.new(color.green, 80) : emaTrendShortBear ? color.new(color.red, 80) : color.new(color.gray, 80),
-                  text_color=color.white, text_size=size.tiny)
-
-        table.cell(indTable, 0, 2, "MACD", text_color=color.white, text_size=size.tiny)
-        table.cell(indTable, 1, 2, macdBullish ? "Bull ✓" : "Bear",
-                  bgcolor=macdBullish ? color.new(color.green, 80) : color.new(color.red, 80),
-                  text_color=color.white, text_size=size.tiny)
-
-        table.cell(indTable, 0, 3, "RSI", text_color=color.white, text_size=size.tiny)
-        table.cell(indTable, 1, 3, str.tostring(rsi14, "#.#"),
-                  bgcolor=rsiOversold ? color.new(color.green, 70) : rsiOverbought ? color.new(color.red, 70) : color.new(color.gray, 80),
-                  text_color=color.white, text_size=size.tiny)
-
-        table.cell(indTable, 0, 4, "Stoch", text_color=color.white, text_size=size.tiny)
-        table.cell(indTable, 1, 4, str.tostring(stochK, "#.#"),
-                  bgcolor=stochOversold ? color.new(color.green, 70) : stochOverbought ? color.new(color.red, 70) : color.new(color.gray, 80),
-                  text_color=color.white, text_size=size.tiny)
-
-        table.cell(indTable, 0, 5, "ADX", text_color=color.white, text_size=size.tiny)
-        table.cell(indTable, 1, 5, str.tostring(adx, "#.#"),
-                  bgcolor=adxStrong ? color.new(color.green, 80) : color.new(color.gray, 80),
-                  text_color=color.white, text_size=size.tiny)
-
-        table.cell(indTable, 0, 6, "Volume", text_color=color.white, text_size=size.tiny)
-        table.cell(indTable, 1, 6, volumeIncreased ? "High ✓" : "Normal",
-                  bgcolor=volumeIncreased ? color.new(color.green, 80) : color.new(color.gray, 80),
-                  text_color=color.white, text_size=size.tiny)
-
-        table.cell(indTable, 0, 7, "CMF", text_color=color.white, text_size=size.tiny)
-        table.cell(indTable, 1, 7, str.tostring(cmf, "#.##"),
-                  bgcolor=cmfBullish ? color.new(color.green, 80) : cmfBearish ? color.new(color.red, 80) : color.new(color.gray, 80),
-                  text_color=color.white, text_size=size.tiny)
-
-        table.cell(indTable, 0, 8, "OBV", text_color=color.white, text_size=size.tiny)
-        table.cell(indTable, 1, 8, obvBullish ? "Bull ✓" : "Bear",
-                  bgcolor=obvBullish ? color.new(color.green, 80) : color.new(color.red, 80),
-                  text_color=color.white, text_size=size.tiny)
-
-        table.cell(indTable, 0, 9, "Weekly", text_color=color.white, text_size=size.tiny)
-        table.cell(indTable, 1, 9, weeklyBullish ? "Bull ✓" : "Bear",
-                  bgcolor=weeklyBullish ? color.new(color.green, 80) : color.new(color.gray, 80),
-                  text_color=color.white, text_size=size.tiny)
-
-        table.cell(indTable, 0, 10, "Daily", text_color=color.white, text_size=size.tiny)
-        table.cell(indTable, 1, 10, dailyBullish ? "Bull ✓" : "Bear",
-                  bgcolor=dailyBullish ? color.new(color.green, 80) : color.new(color.gray, 80),
-                  text_color=color.white, text_size=size.tiny)
-
-        table.cell(indTable, 0, 11, "Base", text_color=color.white, text_size=size.tiny)
-        table.cell(indTable, 1, 11, tightBase ? "Tight ✓" : "None",
-                  bgcolor=tightBase ? color.new(color.green, 80) : color.new(color.gray, 80),
-                  text_color=color.white, text_size=size.tiny)
+// Indicator detail table removed - all key info shown in main AI Predictor table
 
 // ==================================================================================
 // NOTES
