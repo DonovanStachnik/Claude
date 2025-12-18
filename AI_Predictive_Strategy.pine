@@ -1,4 +1,4 @@
-//@version=5
+//@version=6
 strategy("AI Predictive Strategy - Data-Driven Swing Predictor",
          shorttitle="AI Pred",
          overlay=true,
@@ -203,9 +203,9 @@ uo_length2 = 14
 uo_length3 = 28
 bp = close - math.min(low, close[1])
 tr = math.max(high, close[1]) - math.min(low, close[1])
-avg1 = ta.sum(bp, uo_length1) / ta.sum(tr, uo_length1)
-avg2 = ta.sum(bp, uo_length2) / ta.sum(tr, uo_length2)
-avg3 = ta.sum(bp, uo_length3) / ta.sum(tr, uo_length3)
+avg1 = math.sum(bp, uo_length1) / math.sum(tr, uo_length1)
+avg2 = math.sum(bp, uo_length2) / math.sum(tr, uo_length2)
+avg3 = math.sum(bp, uo_length3) / math.sum(tr, uo_length3)
 ult = 100 * ((4 * avg1) + (2 * avg2) + avg3) / (4 + 2 + 1)
 ultBullish = ult > 50
 ultBearish = ult < 50
