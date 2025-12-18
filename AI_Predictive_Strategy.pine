@@ -124,10 +124,12 @@ supertrend := supertrendDirection == 1 ? lowerBand : upperBand
 supertrendBullish = supertrendDirection == 1
 supertrendBearish = supertrendDirection == -1
 
-// Aroon
+// Aroon (custom implementation)
 aroonLength = 25
-aroonUp = ta.aroon(aroonLength, close)[0]
-aroonDown = ta.aroon(aroonLength, close)[1]
+barsSinceHigh = ta.highestbars(high, aroonLength)
+barsSinceLow = ta.lowestbars(low, aroonLength)
+aroonUp = ((aroonLength - math.abs(barsSinceHigh)) / aroonLength) * 100
+aroonDown = ((aroonLength - math.abs(barsSinceLow)) / aroonLength) * 100
 aroonBullish = aroonUp > 70 and aroonDown < 30
 aroonBearish = aroonDown > 70 and aroonUp < 30
 
@@ -195,8 +197,16 @@ roc = ta.roc(close, rocLength)
 rocBullish = roc > 0 and roc > roc[1]
 rocBearish = roc < 0 and roc < roc[1]
 
-// Ultimate Oscillator
-ult = ta.uo(7, 14, 28)
+// Ultimate Oscillator (custom implementation)
+uo_length1 = 7
+uo_length2 = 14
+uo_length3 = 28
+bp = close - math.min(low, close[1])
+tr = math.max(high, close[1]) - math.min(low, close[1])
+avg1 = ta.sum(bp, uo_length1) / ta.sum(tr, uo_length1)
+avg2 = ta.sum(bp, uo_length2) / ta.sum(tr, uo_length2)
+avg3 = ta.sum(bp, uo_length3) / ta.sum(tr, uo_length3)
+ult = 100 * ((4 * avg1) + (2 * avg2) + avg3) / (4 + 2 + 1)
 ultBullish = ult > 50
 ultBearish = ult < 50
 ultOversold = ult < 30
