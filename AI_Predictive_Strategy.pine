@@ -1,6 +1,6 @@
 //@version=5
 strategy("AI Predictive Strategy - Data-Driven Swing Predictor",
-         shorttitle="AI Predictor",
+         shorttitle="AI Pred",
          overlay=true,
          initial_capital=10000,
          default_qty_type=strategy.percent_of_equity,
@@ -369,8 +369,10 @@ weeklyOversold = weekly_rsi < 35
 weeklyOverbought = weekly_rsi > 65
 
 // Daily Timeframe
-[daily_close, daily_ema21, daily_ema50, daily_rsi, daily_macd, daily_signal] = request.security(syminfo.tickerid, tf1d,
-     [close, emaCalc(close, 21), emaCalc(close, 50), ta.rsi(close, 14), ta.macd(close, 12, 26, 9)[0], ta.macd(close, 12, 26, 9)[1]], lookahead=barmerge.lookahead_off)
+[daily_close, daily_ema21, daily_ema50, daily_rsi] = request.security(syminfo.tickerid, tf1d,
+     [close, emaCalc(close, 21), emaCalc(close, 50), ta.rsi(close, 14)], lookahead=barmerge.lookahead_off)
+[daily_macd, daily_signal, daily_hist] = request.security(syminfo.tickerid, tf1d,
+     ta.macd(close, 12, 26, 9), lookahead=barmerge.lookahead_off)
 dailyBullish = daily_close > daily_ema21 and daily_ema21 > daily_ema50
 dailyBearish = daily_close < daily_ema21 and daily_ema21 < daily_ema50
 dailyMacdBullish = daily_macd > daily_signal
