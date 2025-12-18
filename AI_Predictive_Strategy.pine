@@ -673,13 +673,18 @@ plot(ema21, "EMA 21", color=color.new(color.blue, 0), linewidth=1)
 plot(ema50, "EMA 50", color=color.new(color.orange, 0), linewidth=2)
 plot(ema200, "EMA 200", color=color.new(color.red, 0), linewidth=2)
 
-// Plot Buy/Sell signals - PROFESSIONAL SHAPES
-plotshape(buySignal, "BUY ENTRY", shape.labelup, location.belowbar, buyColor, text="BUY", textcolor=color.white, size=size.normal)
-plotshape(sellSignal, "SELL EXIT", shape.labeldown, location.abovebar, sellColor, text="SELL", textcolor=color.white, size=size.normal)
+// SUITE DIAMONDS - Visual markers showing momentum shifts (PRIMARY SIGNALS)
+// Blue Diamonds = Bullish momentum (appear near local LOWS/bottoms)
+plotshape(suiteBlueDiamond or suiteBlueDiamondEarly, "Blue Diamond", shape.diamond, location.belowbar,
+         color.new(#00CED1, 0), size=size.small, text="◆")
 
-// Additional triangle markers for visibility
-plotshape(buySignal, "BUY Triangle", shape.triangleup, location.belowbar, buyColor, size=size.small, offset=-1)
-plotshape(sellSignal, "SELL Triangle", shape.triangledown, location.abovebar, sellColor, size=size.small, offset=-1)
+// Pink Diamonds = Bearish momentum (appear near local HIGHS/tops)
+plotshape(suitePinkDiamond or suitePinkDiamondEarly, "Pink Diamond", shape.diamond, location.abovebar,
+         color.new(#FF1493, 0), size=size.small, text="◆")
+
+// BUY/SELL Entry/Exit Signals (when all criteria align)
+plotshape(buySignal, "BUY ENTRY", shape.triangleup, location.belowbar, buyColor, size=size.normal)
+plotshape(sellSignal, "SELL EXIT", shape.triangledown, location.abovebar, sellColor, size=size.normal)
 
 // Signal Labels with Details
 if buySignal and showConfidence
