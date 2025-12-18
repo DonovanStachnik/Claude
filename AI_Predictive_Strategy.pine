@@ -28,10 +28,11 @@ string tf1d = input.timeframe("D", "1D Timeframe", group="Timeframes")
 string tf1w = input.timeframe("W", "1W Timeframe", group="Timeframes")
 
 // Strategy Settings
-int minConfidence = input.int(75, "Minimum Confidence Score (0-100)", minval=0, maxval=100, group="Strategy")
-bool useMultiTimeframe = input.bool(true, "Require Multi-Timeframe Alignment", group="Strategy")
-bool usePatternRecognition = input.bool(true, "Use Pattern Recognition", group="Strategy")
-bool useMarketRegime = input.bool(true, "Use Market Regime Filter", group="Strategy")
+int minConfidence = input.int(60, "Minimum Confidence Score (0-100)", minval=0, maxval=100, group="Strategy")
+bool useMultiTimeframe = input.bool(false, "Require Multi-Timeframe Alignment", group="Strategy")
+bool usePatternRecognition = input.bool(false, "Use Pattern Recognition", group="Strategy")
+bool useMarketRegime = input.bool(false, "Use Market Regime Filter", group="Strategy")
+bool catchReversals = input.bool(true, "Catch Local Lows/Highs (Reversals)", group="Strategy")
 
 // Risk Management
 float stopLossPct = input.float(10.0, "Stop Loss %", minval=0.1, maxval=50, group="Risk Management")
@@ -510,8 +511,38 @@ sellConfidenceScore = sellTrendScore + sellMomentumScore + sellVolumeScore + sel
 // SIGNAL GENERATION
 // ==================================================================================
 
-// BUY Signal Requirements
-buySignalRaw = confidenceScore >= minConfidence
+// LOCAL LOW DETECTION (Reversal Buy Signals)
+bool localLowReversal = false
+if catchReversals
+    // Price bouncing off oversold RSI
+    rsiBounce = rsi14 < 35 and rsi14 > rsi14[1] and rsi14[1] > rsi14[2]
+    // Stochastic bounce
+    stochBounce = stochK < 25 and ta.crossover(stochK, stochD)
+    // Price making higher low while RSI making higher low (bullish divergence)
+    priceHigherLow = low > low[5] and close < close[5]
+    rsiHigherLow = rsi14 > rsi14[5]
+    bullishDivergence = priceHigherLow and rsiHigherLow
+    // Volume spike at low
+    volumeSpike = volume > volumeMA * 1.5 and close > open
+
+    localLowReversal := (rsiBounce or stochBounce or bullishDivergence) and (volumeIncreased or volumeSpike)
+
+// LOCAL HIGH DETECTION (Reversal Sell Signals)
+bool localHighReversal = false
+if catchReversals
+    // Price rejecting overbought RSI
+    rsiRejection = rsi14 > 65 and rsi14 < rsi14[1] and rsi14[1] < rsi14[2]
+    // Stochastic rejection
+    stochRejection = stochK > 75 and ta.crossunder(stochK, stochD)
+    // Price making lower high while RSI making lower high (bearish divergence)
+    priceLowerHigh = high < high[5] and close > close[5]
+    rsiLowerHigh = rsi14 < rsi14[5]
+    bearishDivergence = priceLowerHigh and rsiLowerHigh
+
+    localHighReversal := (rsiRejection or stochRejection or bearishDivergence) and volumeIncreased
+
+// BUY Signal Requirements (More Aggressive)
+buySignalRaw = confidenceScore >= minConfidence or localLowReversal
 if useMultiTimeframe
     buySignalRaw := buySignalRaw and (weeklyBullish or weeklyOversold) and dailyBullish
 if useMarketRegime
@@ -519,14 +550,14 @@ if useMarketRegime
 if usePatternRecognition
     buySignalRaw := buySignalRaw and (tightBase or bullishStructure)
 
-// SELL Signal Requirements
-sellSignalRaw = sellConfidenceScore >= 15 or rsiOverbought
+// SELL Signal Requirements (More Aggressive)
+sellSignalRaw = sellConfidenceScore >= 15 or rsiOverbought or localHighReversal
 
-// Prevent signal spam - minimum 5 bars between signals
+// Prevent signal spam - minimum 3 bars between signals (reduced from 5)
 var int barsSinceLastSignal = 0
 barsSinceLastSignal := buySignalRaw or sellSignalRaw ? 0 : barsSinceLastSignal + 1
 
-buySignal = buySignalRaw and barsSinceLastSignal > 5 and strategy.position_size == 0
+buySignal = buySignalRaw and barsSinceLastSignal > 3 and strategy.position_size == 0
 sellSignal = sellSignalRaw and strategy.position_size > 0
 
 // ==================================================================================
@@ -569,27 +600,33 @@ plot(ema21, "EMA 21", color=color.new(color.blue, 0), linewidth=1)
 plot(ema50, "EMA 50", color=color.new(color.orange, 0), linewidth=2)
 plot(ema200, "EMA 200", color=color.new(color.red, 0), linewidth=2)
 
-// Plot Buy/Sell signals - LARGE and PROMINENT
-plotshape(buySignal, "BUY", shape.triangleup, location.belowbar, buyColor, size=size.large)
-plotshape(sellSignal, "SELL", shape.triangledown, location.abovebar, sellColor, size=size.large)
+// Plot Buy/Sell signals - PROFESSIONAL SHAPES
+plotshape(buySignal, "BUY ENTRY", shape.labelup, location.belowbar, buyColor, text="BUY", textcolor=color.white, size=size.normal)
+plotshape(sellSignal, "SELL EXIT", shape.labeldown, location.abovebar, sellColor, text="SELL", textcolor=color.white, size=size.normal)
 
-// Signal Labels with Confidence - PROMINENT
+// Additional triangle markers for visibility
+plotshape(buySignal, "BUY Triangle", shape.triangleup, location.belowbar, buyColor, size=size.small, offset=-1)
+plotshape(sellSignal, "SELL Triangle", shape.triangledown, location.abovebar, sellColor, size=size.small, offset=-1)
+
+// Signal Labels with Details
 if buySignal and showConfidence
-    label.new(bar_index, low,
-             text="🎯 BUY SIGNAL 🎯\n" + str.tostring(confidenceScore) + "% Confidence\n$" + str.tostring(close, format.mintick),
+    string buyText = localLowReversal ? "REVERSAL BUY" : "BUY"
+    label.new(bar_index, low * 0.995,
+             text=buyText + "\n" + str.tostring(confidenceScore) + "%\n$" + str.tostring(close, format.mintick),
              color=color.new(buyColor, 0),
              textcolor=color.white,
              style=label.style_label_up,
-             size=size.large,
+             size=size.normal,
              textalign=text.align_center)
 
 if sellSignal and showConfidence
-    label.new(bar_index, high,
-             text="🚫 SELL SIGNAL 🚫\n$" + str.tostring(close, format.mintick),
+    string sellText = localHighReversal ? "REVERSAL SELL" : "SELL"
+    label.new(bar_index, high * 1.005,
+             text=sellText + "\n$" + str.tostring(close, format.mintick),
              color=color.new(sellColor, 0),
              textcolor=color.white,
              style=label.style_label_down,
-             size=size.large,
+             size=size.normal,
              textalign=text.align_center)
 
 // ==================================================================================
