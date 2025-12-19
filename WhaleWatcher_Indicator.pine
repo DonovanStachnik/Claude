@@ -74,9 +74,10 @@ plot(showCumulativeLine ? whaleDelta : na, "Cumulative Whale Delta", color=delta
 plotColor = whaleBuy ? whaleGreen : whaleSell ? whaleRed : color.new(color.gray, 70)
 plot(showBars ? barDelta : na, "Volume Delta", color=plotColor, style=plot.style_histogram, linewidth=2)
 
-// Plot Whale Markers (X marks for large orders)
-plotshape(showWhaleMarkers and whaleBuy, "Whale Buy", shape.xcross, location=location.absolute, color=whaleGreen, size=size.small)
-plotshape(showWhaleMarkers and whaleSell, "Whale Sell", shape.xcross, location=location.absolute, color=whaleRed, size=size.small)
+// Plot Whale Markers ON THE LINE at the delta value
+// Plot the delta value ONLY when whale activity detected, with colored markers
+plot(showWhaleMarkers and whaleBuy ? whaleDelta : na, "Whale Buy Marker", color=whaleGreen, style=plot.style_cross, linewidth=3)
+plot(showWhaleMarkers and whaleSell ? whaleDelta : na, "Whale Sell Marker", color=whaleRed, style=plot.style_cross, linewidth=3)
 
 // Zero line for reference
 hline(0, "Zero Line", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
