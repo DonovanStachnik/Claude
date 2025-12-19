@@ -1,0 +1,159 @@
+//@version=6
+indicator("Whale Watcher - Institutional Activity Detector", shorttitle="Whale Watch", overlay=false)
+
+// ==================================================================================
+// WHALE WATCHER - SEPARATE PANE INDICATOR
+// ==================================================================================
+// Detects large institutional orders using volume analysis
+// Shows cumulative buying/selling pressure over time
+// ==================================================================================
+
+// Settings
+float whaleVolumeMultiplier = input.float(3.0, "Whale Volume Threshold (x Average)", minval=1.0, maxval=10.0, group="Detection")
+int volumeLength = input.int(20, "Volume Average Length", minval=1, group="Detection")
+bool showBars = input.bool(true, "Show Volume Bars", group="Display")
+bool showCumulativeLine = input.bool(true, "Show Cumulative Delta Line", group="Display")
+bool showWhaleMarkers = input.bool(true, "Show Whale Buy/Sell Markers", group="Display")
+
+// Colors
+color whaleGreen = input.color(color.new(#00FF00, 0), "Whale Buy Color", group="Colors")
+color whaleRed = input.color(color.new(#FF0000, 0), "Whale Sell Color", group="Colors")
+color deltaLineColor = input.color(color.new(#FFD700, 0), "Cumulative Delta Line", group="Colors")
+
+// ==================================================================================
+// VOLUME ANALYSIS
+// ==================================================================================
+
+// Volume Average
+volumeMA = ta.sma(volume, volumeLength)
+
+// Whale Volume Detection (volume significantly above average)
+whaleVolume = volume > volumeMA * whaleVolumeMultiplier
+
+// Determine buying vs selling pressure
+// Buying pressure: close near high (close in upper 70% of candle range)
+buyingPressure = (high - low) > 0 ? (close - low) / (high - low) : 0
+sellingPressure = (high - low) > 0 ? (high - close) / (high - low) : 0
+
+// Whale Buy = Massive volume + Strong buying pressure + Green candle
+whaleBuy = whaleVolume and buyingPressure > 0.7 and close > open
+
+// Whale Sell = Massive volume + Strong selling pressure + Red candle
+whaleSell = whaleVolume and sellingPressure > 0.7 and close < open
+
+// ==================================================================================
+// CUMULATIVE WHALE DELTA
+// ==================================================================================
+// Tracks net institutional buying/selling over time
+
+var float whaleDelta = 0.0
+float deltaChange = 0.0
+
+if whaleBuy
+    deltaChange := volume / volumeMA
+    whaleDelta := whaleDelta + deltaChange
+else if whaleSell
+    deltaChange := -(volume / volumeMA)
+    whaleDelta := whaleDelta + deltaChange
+
+// Volume Delta per bar (for bar chart)
+float barDelta = 0.0
+if whaleBuy
+    barDelta := volume / volumeMA
+else if whaleSell
+    barDelta := -(volume / volumeMA)
+
+// ==================================================================================
+// VISUAL DISPLAY
+// ==================================================================================
+
+// Plot Cumulative Delta Line (flowing line showing net institutional pressure)
+plot(showCumulativeLine ? whaleDelta : na, "Cumulative Whale Delta", color=deltaLineColor, linewidth=2, style=plot.style_line)
+
+// Plot Volume Bars (green for buying, red for selling)
+plotColor = whaleBuy ? whaleGreen : whaleSell ? whaleRed : color.new(color.gray, 70)
+plot(showBars ? barDelta : na, "Volume Delta", color=plotColor, style=plot.style_histogram, linewidth=2)
+
+// Plot Whale Markers (X marks for large orders)
+plotshape(showWhaleMarkers and whaleBuy, "Whale Buy", shape.xcross, location=location.absolute, color=whaleGreen, size=size.small)
+plotshape(showWhaleMarkers and whaleSell, "Whale Sell", shape.xcross, location=location.absolute, color=whaleRed, size=size.small)
+
+// Zero line for reference
+hline(0, "Zero Line", color=color.new(color.gray, 50), linestyle=hline.style_dashed)
+
+// Background coloring for strong institutional pressure
+bgcolor(whaleBuy ? color.new(whaleGreen, 90) : whaleSell ? color.new(whaleRed, 90) : na, title="Whale Activity Background")
+
+// ==================================================================================
+// STATISTICS TABLE
+// ==================================================================================
+
+var table statsTable = table.new(position.top_right, 2, 6, border_width=1)
+
+if barstate.islast
+    // Header
+    table.cell(statsTable, 0, 0, "Whale Watcher", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.small)
+    table.cell(statsTable, 1, 0, "Status", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.small)
+
+    // Cumulative Delta
+    table.cell(statsTable, 0, 1, "Cumulative Delta", text_color=color.white, text_size=size.tiny)
+    table.cell(statsTable, 1, 1, str.tostring(whaleDelta, "#.##"),
+              bgcolor=whaleDelta > 0 ? color.new(whaleGreen, 70) : color.new(whaleRed, 70),
+              text_color=color.white, text_size=size.tiny)
+
+    // Current Activity
+    table.cell(statsTable, 0, 2, "Current Activity", text_color=color.white, text_size=size.tiny)
+    string activity = whaleBuy ? "BUY ✓" : whaleSell ? "SELL ✓" : "NORMAL"
+    table.cell(statsTable, 1, 2, activity,
+              bgcolor=whaleBuy ? color.new(whaleGreen, 50) : whaleSell ? color.new(whaleRed, 50) : color.new(color.gray, 70),
+              text_color=color.white, text_size=size.tiny)
+
+    // Volume vs Average
+    float volumeRatio = volume / volumeMA
+    table.cell(statsTable, 0, 3, "Volume Ratio", text_color=color.white, text_size=size.tiny)
+    table.cell(statsTable, 1, 3, str.tostring(volumeRatio, "#.##") + "x",
+              bgcolor=volumeRatio >= whaleVolumeMultiplier ? color.new(color.orange, 70) : color.new(color.gray, 70),
+              text_color=color.white, text_size=size.tiny)
+
+    // Buying Pressure
+    table.cell(statsTable, 0, 4, "Buying Pressure", text_color=color.white, text_size=size.tiny)
+    table.cell(statsTable, 1, 4, str.tostring(buyingPressure * 100, "#.#") + "%",
+              bgcolor=buyingPressure > 0.7 ? color.new(whaleGreen, 70) : color.new(color.gray, 70),
+              text_color=color.white, text_size=size.tiny)
+
+    // Selling Pressure
+    table.cell(statsTable, 0, 5, "Selling Pressure", text_color=color.white, text_size=size.tiny)
+    table.cell(statsTable, 1, 5, str.tostring(sellingPressure * 100, "#.#") + "%",
+              bgcolor=sellingPressure > 0.7 ? color.new(whaleRed, 70) : color.new(color.gray, 70),
+              text_color=color.white, text_size=size.tiny)
+
+// ==================================================================================
+// ALERTS
+// ==================================================================================
+
+alertcondition(whaleBuy, "Whale Buy Detected", "Large institutional BUY order detected!")
+alertcondition(whaleSell, "Whale Sell Detected", "Large institutional SELL order detected!")
+alertcondition(whaleDelta > whaleDelta[10] * 1.5, "Strong Accumulation", "Strong whale accumulation detected")
+alertcondition(whaleDelta < whaleDelta[10] * 0.5, "Strong Distribution", "Strong whale distribution detected")
+
+// ==================================================================================
+// NOTES
+// ==================================================================================
+// WHALE WATCHER detects institutional-level activity using:
+// 1. Volume Spikes (3x+ average volume)
+// 2. Buying/Selling Pressure (where price closes in candle range)
+// 3. Cumulative Delta (net buying vs selling over time)
+//
+// HOW TO USE:
+// - Green X markers = Large institutional BUY orders
+// - Red X markers = Large institutional SELL orders
+// - Gold line = Cumulative delta (trending up = accumulation, down = distribution)
+// - Green bars = Individual whale buy pressure
+// - Red bars = Individual whale sell pressure
+//
+// INTERPRETATION:
+// - Rising cumulative delta = Whales accumulating (bullish)
+// - Falling cumulative delta = Whales distributing (bearish)
+// - Cluster of green X's = Strong institutional buying zone
+// - Cluster of red X's = Strong institutional selling zone
+// ==================================================================================

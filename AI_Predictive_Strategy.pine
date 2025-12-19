@@ -7,7 +7,8 @@ strategy("AI Predictive Strategy - Data-Driven Swing Predictor",
          default_qty_value=7,
          commission_type=strategy.commission.percent,
          commission_value=0.1,
-         slippage=2)
+         slippage=2,
+         max_bars_back=5000)
 
 // ==================================================================================
 // PREDICTIVE STRATEGY USING 50+ INDICATORS AND HISTORICAL DATA
@@ -54,6 +55,11 @@ bool showBacktestStats = input.bool(true, "Show AI Predictor Table", group="Disp
 // Visual Settings
 color buyColor = input.color(color.new(#10cab8, 0), "Buy Signal Color", group="Visual")
 color sellColor = input.color(color.new(#8080ff, 0), "Sell Signal Color", group="Visual")
+
+// Whale Watcher Settings (Institutional Activity Detection)
+bool showWhaleActivity = input.bool(true, "Show Whale Activity on Chart", group="Whale Watcher")
+float whaleVolumeMultiplier = input.float(3.0, "Whale Volume Threshold (x Average)", minval=1.0, maxval=10.0, group="Whale Watcher")
+bool markWhalesOnChart = input.bool(true, "Mark Whale Buys/Sells on Main Chart", group="Whale Watcher")
 
 // ==================================================================================
 // HELPER FUNCTIONS
@@ -305,6 +311,39 @@ pvt = ta.pvt
 pvtMA = smaCalc(pvt, 20)
 pvtBullish = pvt > pvtMA
 pvtBearish = pvt < pvtMA
+
+// ==================================================================================
+// WHALE WATCHER - INSTITUTIONAL ACTIVITY DETECTION
+// ==================================================================================
+// Detects abnormally large volume indicating institutional buying/selling
+
+// Whale Volume Detection (volume significantly above average)
+whaleVolume = volume > volumeMA * whaleVolumeMultiplier
+
+// Determine if it's buying or selling pressure
+// Buying pressure: close near high with green candle
+buyingPressure = (close - low) / (high - low)
+sellingPressure = (high - close) / (high - low)
+
+// Whale Buy = Massive volume + Strong buying pressure (close in upper 70% of range)
+whaleBuy = whaleVolume and buyingPressure > 0.7 and close > open
+
+// Whale Sell = Massive volume + Strong selling pressure (close in lower 30% of range)
+whaleSell = whaleVolume and sellingPressure > 0.7 and close < open
+
+// Cumulative Whale Delta (tracks net whale buying/selling over time)
+var float whaleDelta = 0.0
+if whaleBuy
+    whaleDelta := whaleDelta + (volume / volumeMA)
+else if whaleSell
+    whaleDelta := whaleDelta - (volume / volumeMA)
+
+// Volume Delta per bar (for plotting)
+float barDelta = 0.0
+if whaleBuy
+    barDelta := volume / volumeMA
+else if whaleSell
+    barDelta := -(volume / volumeMA)
 
 // ==================================================================================
 // VOLATILITY INDICATORS (8 indicators)
@@ -681,6 +720,14 @@ plotshape(suiteBlueDiamond or suiteBlueDiamondEarly, "Bullish Reversal", shape.x
 // Red Cross = Bearish momentum (appear near local HIGHS/tops)
 plotshape(suitePinkDiamond or suitePinkDiamondEarly, "Bearish Reversal", shape.xcross, location.abovebar,
          color.new(#FF0000, 0), size=size.small)
+
+// WHALE ACTIVITY MARKERS - Institutional buying/selling
+if markWhalesOnChart
+    // Whale Buy = Green X on candle (large institutional buying detected)
+    plotshape(whaleBuy, "Whale Buy", shape.xcross, location.absolute, color.new(#00FF00, 0), size=size.tiny, offset=0)
+
+    // Whale Sell = Red X on candle (large institutional selling detected)
+    plotshape(whaleSell, "Whale Sell", shape.xcross, location.absolute, color.new(#FF0000, 0), size=size.tiny, offset=0)
 
 // BUY/SELL Entry/Exit Signals (when all criteria align)
 plotshape(buySignal, "BUY ENTRY", shape.triangleup, location.belowbar, buyColor, size=size.normal)
