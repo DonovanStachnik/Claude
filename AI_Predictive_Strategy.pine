@@ -4,7 +4,7 @@ strategy("AI Predictive Strategy - Data-Driven Swing Predictor",
          overlay=true,
          initial_capital=10000,
          default_qty_type=strategy.percent_of_equity,
-         default_qty_value=7,
+         default_qty_value=5,
          commission_type=strategy.commission.percent,
          commission_value=0.1,
          slippage=2,
@@ -595,113 +595,26 @@ sellPatternScore := sellPatternScore + (shootingStar or bearishEngulfing or even
 sellConfidenceScore = sellTrendScore + sellMomentumScore + sellVolumeScore + sellPatternScore
 
 // ==================================================================================
-// SIGNAL GENERATION
+// SIMPLE SIGNAL GENERATION - GREEN X = BUY, RED X = EXIT
 // ==================================================================================
 
-// LOCAL LOW DETECTION (Reversal Buy Signals)
-bool localLowReversal = false
-if catchReversals
-    // Price bouncing off oversold RSI
-    rsiBounce = rsi14 < 40 and rsi14 > rsi14[1]
-    // Stochastic bounce
-    stochBounce = stochK < 30 and stochK > stochK[1]
-    // Bullish candlestick patterns
-    bullishCandle = hammer or bullishEngulfing or morningStar
-    // Price near support with bullish momentum
-    nearSupportBounce = nearSupport and close > open and close > close[1]
+// BUY Signal = Green X (Suite Diamonds bullish reversal)
+buySignal = (suiteBlueDiamond or suiteBlueDiamondEarly) and strategy.position_size == 0
 
-    // Much simpler - ANY bullish signal triggers
-    localLowReversal := rsiBounce or stochBounce or bullishCandle or nearSupportBounce
-
-// LOCAL HIGH DETECTION (Reversal Sell Signals)
-bool localHighReversal = false
-if catchReversals
-    // Price rejecting overbought RSI
-    rsiRejection = rsi14 > 60 and rsi14 < rsi14[1]
-    // Stochastic rejection
-    stochRejection = stochK > 70 and stochK < stochK[1]
-    // Bearish candlestick patterns
-    bearishCandle = shootingStar or bearishEngulfing or eveningStar
-    // Price near resistance with bearish momentum
-    nearResistanceReject = nearResistance and close < open and close < close[1]
-
-    // Much simpler - ANY bearish signal triggers
-    localHighReversal := rsiRejection or stochRejection or bearishCandle or nearResistanceReject
-
-// AGGRESSIVE MODE - Simple price action signals
-bool simpleRsiBuy = aggressiveMode and rsi14 < 30 and close > open
-bool simpleRsiSell = aggressiveMode and rsi14 > 70 and close < open
-bool emaCrossUp = aggressiveMode and ta.crossover(close, ema21)
-bool emaCrossDown = aggressiveMode and ta.crossunder(close, ema21)
-
-// SCREENING CRITERIA FILTERS
-bool passScreening = true
-
-// Diamond Durability (10+ Bars)
-if useDiamondDurability
-    passScreening := passScreening and diamondDurable
-
-// Green Mountain (Must be Green/Positive)
-if requireGreenMountain
-    passScreening := passScreening and greenMountainUp
-
-// Price Psychology (<$10 filter)
-if pricePsychology
-    passScreening := passScreening and close < 10
-
-// Volume Average (>100K shares minimum)
-if minVolumeAvg > 0
-    passScreening := passScreening and volumeMA > (minVolumeAvg * 1000)
-
-// BUY Signal Requirements (VERY Aggressive)
-buySignalRaw = (confidenceScore >= minConfidence or localLowReversal or simpleRsiBuy or emaCrossUp) and passScreening
-if useMultiTimeframe
-    buySignalRaw := buySignalRaw and (weeklyBullish or weeklyOversold) and dailyBullish and h4Bullish
-if useMarketRegime
-    buySignalRaw := buySignalRaw and (marketBullPhase or marketNeutral)
-if usePatternRecognition
-    buySignalRaw := buySignalRaw and (tightBase or bullishStructure)
-
-// SELL Signal Requirements (VERY Aggressive)
-sellSignalRaw = sellConfidenceScore >= 10 or localHighReversal or simpleRsiSell or emaCrossDown
-
-// Prevent signal spam - minimum 2 bars between signals (very aggressive)
-var int barsSinceLastSignal = 0
-barsSinceLastSignal := buySignalRaw or sellSignalRaw ? 0 : barsSinceLastSignal + 1
-
-buySignal = buySignalRaw and barsSinceLastSignal > 2 and strategy.position_size == 0
-sellSignal = sellSignalRaw and strategy.position_size > 0
+// SELL Signal = Red X (Suite Diamonds bearish reversal)
+sellSignal = (suitePinkDiamond or suitePinkDiamondEarly) and strategy.position_size > 0
 
 // ==================================================================================
-// STRATEGY EXECUTION
+// STRATEGY EXECUTION - SIMPLE GREEN X ENTRY, RED X EXIT
 // ==================================================================================
 
-// Entry
+// Entry on Green X (5% position size set in strategy declaration)
 if buySignal
-    strategy.entry("BUY", strategy.long)
+    strategy.entry("BUY", strategy.long, comment="Green X Entry")
 
-// Stop Loss
-if strategy.position_size > 0
-    stopPrice = strategy.position_avg_price * (1 - stopLossPct / 100)
-    strategy.exit("Stop Loss", "BUY", stop=stopPrice)
-
-// Targets
-if strategy.position_size > 0
-    target1Price = strategy.position_avg_price * (1 + target1Pct / 100)
-    target2Price = strategy.position_avg_price * (1 + target2Pct / 100)
-    target3Price = strategy.position_avg_price * (1 + target3Pct / 100)
-
-    // Trim at targets
-    if close >= target1Price and close[1] < target1Price
-        strategy.close("BUY", qty_percent=30, comment="Target 1 (+20%)")
-    if close >= target2Price and close[1] < target2Price
-        strategy.close("BUY", qty_percent=57, comment="Target 2 (+50%)")  // 40% of remaining 70%
-    if close >= target3Price
-        strategy.close("BUY", comment="Target 3 (+100%)")
-
-// Exit on sell signal
+// Exit on Red X (close entire position)
 if sellSignal
-    strategy.close("BUY", comment="Sell Signal")
+    strategy.close("BUY", comment="Red X Exit")
 
 // ==================================================================================
 // VISUAL DISPLAY
@@ -735,9 +648,8 @@ plotshape(sellSignal, "SELL EXIT", shape.triangledown, location.abovebar, sellCo
 
 // Signal Labels with Details
 if buySignal and showConfidence
-    string buyText = localLowReversal ? "REVERSAL BUY" : "BUY"
     label.new(bar_index, low * 0.995,
-             text=buyText + "\n" + str.tostring(confidenceScore) + "%\n$" + str.tostring(close, format.mintick),
+             text="ENTER\nGreen X\n$" + str.tostring(close, format.mintick),
              color=color.new(buyColor, 0),
              textcolor=color.white,
              style=label.style_label_up,
@@ -745,9 +657,8 @@ if buySignal and showConfidence
              textalign=text.align_center)
 
 if sellSignal and showConfidence
-    string sellText = localHighReversal ? "REVERSAL SELL" : "SELL"
     label.new(bar_index, high * 1.005,
-             text=sellText + "\n$" + str.tostring(close, format.mintick),
+             text="EXIT\nRed X\n$" + str.tostring(close, format.mintick),
              color=color.new(sellColor, 0),
              textcolor=color.white,
              style=label.style_label_down,
@@ -759,52 +670,36 @@ if sellSignal and showConfidence
 // ==================================================================================
 
 if showBacktestStats
-    var table statsTable = table.new(position.top_right, 2, 10, border_width=2)
+    var table statsTable = table.new(position.top_right, 2, 5, border_width=2)
 
     if barstate.islast
         // Header
-        table.cell(statsTable, 0, 0, "AI Predictor", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.normal)
+        table.cell(statsTable, 0, 0, "Suite Diamonds", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.normal)
         table.cell(statsTable, 1, 0, "Status", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.normal)
 
-        // Current scores
-        table.cell(statsTable, 0, 1, "Confidence", text_color=color.white, text_size=size.small)
-        table.cell(statsTable, 1, 1, str.tostring(confidenceScore) + "%",
-                  bgcolor=confidenceScore >= 75 ? color.new(color.green, 50) : color.new(color.gray, 70),
-                  text_color=color.white, text_size=size.small)
-
-        table.cell(statsTable, 0, 2, "Trend Score", text_color=color.white, text_size=size.tiny)
-        table.cell(statsTable, 1, 2, str.tostring(trendScore) + "/25", text_color=color.white, text_size=size.tiny)
-
-        table.cell(statsTable, 0, 3, "Momentum", text_color=color.white, text_size=size.tiny)
-        table.cell(statsTable, 1, 3, str.tostring(momentumScore) + "/20", text_color=color.white, text_size=size.tiny)
-
-        table.cell(statsTable, 0, 4, "Volume", text_color=color.white, text_size=size.tiny)
-        table.cell(statsTable, 1, 4, str.tostring(volumeScore) + "/20", text_color=color.white, text_size=size.tiny)
-
-        table.cell(statsTable, 0, 5, "Pattern", text_color=color.white, text_size=size.tiny)
-        table.cell(statsTable, 1, 5, str.tostring(patternScore) + "/15", text_color=color.white, text_size=size.tiny)
-
-        table.cell(statsTable, 0, 6, "MTF Score", text_color=color.white, text_size=size.tiny)
-        table.cell(statsTable, 1, 6, str.tostring(mtfScore) + "/20", text_color=color.white, text_size=size.tiny)
-
-        // Market regime
-        table.cell(statsTable, 0, 7, "Market Phase", text_color=color.white, text_size=size.tiny)
-        string marketPhase = marketBullPhase ? "BULL ✓" : marketBearPhase ? "BEAR" : "NEUTRAL"
-        table.cell(statsTable, 1, 7, marketPhase,
-                  bgcolor=marketBullPhase ? color.new(color.green, 70) : marketBearPhase ? color.new(color.red, 70) : color.new(color.gray, 70),
+        // Diamond Duration
+        table.cell(statsTable, 0, 1, "Green X Duration", text_color=color.white, text_size=size.tiny)
+        table.cell(statsTable, 1, 1, str.tostring(blueDiamondDuration) + " bars",
+                  bgcolor=blueDiamondDuration > 0 ? color.new(color.green, 70) : color.new(color.gray, 70),
                   text_color=color.white, text_size=size.tiny)
 
-        // Relative strength
-        table.cell(statsTable, 0, 8, "vs SPY", text_color=color.white, text_size=size.tiny)
-        table.cell(statsTable, 1, 8, str.tostring(relativeStrength, "#.#") + "%",
-                  bgcolor=strongRelative ? color.new(color.green, 70) : color.new(color.gray, 70),
+        table.cell(statsTable, 0, 2, "Red X Duration", text_color=color.white, text_size=size.tiny)
+        table.cell(statsTable, 1, 2, str.tostring(pinkDiamondDuration) + " bars",
+                  bgcolor=pinkDiamondDuration > 0 ? color.new(color.red, 70) : color.new(color.gray, 70),
+                  text_color=color.white, text_size=size.tiny)
+
+        // Position Status
+        table.cell(statsTable, 0, 3, "Position", text_color=color.white, text_size=size.tiny)
+        string posStatus = strategy.position_size > 0 ? "IN (5%)" : "CASH"
+        table.cell(statsTable, 1, 3, posStatus,
+                  bgcolor=strategy.position_size > 0 ? color.new(color.blue, 70) : color.new(color.gray, 70),
                   text_color=color.white, text_size=size.tiny)
 
         // Signal status
-        table.cell(statsTable, 0, 9, "Signal", text_color=color.white, text_size=size.tiny)
-        string signalStatus = buySignal ? "BUY ✓" : sellSignal ? "SELL ✓" : confidenceScore >= 60 ? "WATCH" : "WAIT"
-        table.cell(statsTable, 1, 9, signalStatus,
-                  bgcolor=buySignal ? color.new(buyColor, 50) : sellSignal ? color.new(sellColor, 50) : color.new(color.gray, 70),
+        table.cell(statsTable, 0, 4, "Signal", text_color=color.white, text_size=size.tiny)
+        string signalStatus = buySignal ? "GREEN X ✓" : sellSignal ? "RED X ✓" : "WAIT"
+        table.cell(statsTable, 1, 4, signalStatus,
+                  bgcolor=buySignal ? color.new(color.green, 50) : sellSignal ? color.new(color.red, 50) : color.new(color.gray, 70),
                   text_color=color.white, text_size=size.tiny)
 
 // Indicator detail table removed - all key info shown in main AI Predictor table
