@@ -215,13 +215,6 @@ if showDivLines
         line.new(bearishDivBar1, bearishDivRSI1, bearishDivBar2, bearishDivRSI2,
                  color=bearishDivColor, width=2, style=line.style_solid)
 
-// Plot Divergence Signals
-plotshape(bullishDivergence and showBullishDiv, "Bullish Divergence", shape.xcross, location.absolute,
-         bullishDivColor, size=size.small, text="BULLISH\nDIV")
-
-plotshape(bearishDivergence and showBearishDiv, "Bearish Divergence", shape.xcross, location.absolute,
-         bearishDivColor, size=size.small, text="BEARISH\nDIV")
-
 // Divergence Labels
 if bullishDivergence and showLabels and showBullishDiv
     label.new(bar_index, rsi,
