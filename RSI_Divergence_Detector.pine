@@ -112,16 +112,18 @@ var float bullishDivRSI2 = na
 
 bullishDivergence := false
 
-if array.size(pivotLowPrices) >= 2 and showBullishDiv
-    // Get the two most recent pivot lows
+// ONLY check for divergence when a NEW pivot low is formed
+if not na(pivotLowPrice) and not na(pivotLowRSI) and showBullishDiv and array.size(pivotLowPrices) >= 2
+    // Get the current (just formed) pivot
     int lastIndex = array.size(pivotLowPrices) - 1
+    float currentPrice = array.get(pivotLowPrices, lastIndex)
+    float currentRSI = array.get(pivotLowRSIs, lastIndex)
+    int currentBar = array.get(pivotLowBars, lastIndex)
 
+    // Look for divergence with previous pivots
     for i = lastIndex - 1 to math.max(0, lastIndex - 5)
-        float currentPrice = array.get(pivotLowPrices, lastIndex)
         float previousPrice = array.get(pivotLowPrices, i)
-        float currentRSI = array.get(pivotLowRSIs, lastIndex)
         float previousRSI = array.get(pivotLowRSIs, i)
-        int currentBar = array.get(pivotLowBars, lastIndex)
         int previousBar = array.get(pivotLowBars, i)
 
         // Check if within lookback range
@@ -152,16 +154,18 @@ var float bearishDivRSI2 = na
 
 bearishDivergence := false
 
-if array.size(pivotHighPrices) >= 2 and showBearishDiv
-    // Get the two most recent pivot highs
+// ONLY check for divergence when a NEW pivot high is formed
+if not na(pivotHighPrice) and not na(pivotHighRSI) and showBearishDiv and array.size(pivotHighPrices) >= 2
+    // Get the current (just formed) pivot
     int lastIndex = array.size(pivotHighPrices) - 1
+    float currentPrice = array.get(pivotHighPrices, lastIndex)
+    float currentRSI = array.get(pivotHighRSIs, lastIndex)
+    int currentBar = array.get(pivotHighBars, lastIndex)
 
+    // Look for divergence with previous pivots
     for i = lastIndex - 1 to math.max(0, lastIndex - 5)
-        float currentPrice = array.get(pivotHighPrices, lastIndex)
         float previousPrice = array.get(pivotHighPrices, i)
-        float currentRSI = array.get(pivotHighRSIs, lastIndex)
         float previousRSI = array.get(pivotHighRSIs, i)
-        int currentBar = array.get(pivotHighBars, lastIndex)
         int previousBar = array.get(pivotHighBars, i)
 
         // Check if within lookback range
