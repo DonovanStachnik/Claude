@@ -120,10 +120,9 @@ if barstate.islast and array.size(topSupportLevels) > 0
     for i = 0 to array.size(topSupportLevels) - 1
         float level = array.get(topSupportLevels, i)
 
-        // Draw horizontal line
-        line.new(bar_index - lookbackBars, level, bar_index + 20, level,
-                 color=supportColor, width=lineWidth, style=line.style_solid,
-                 extend=extend.right)
+        // Draw short horizontal line (local view only)
+        line.new(bar_index - 100, level, bar_index + 20, level,
+                 color=supportColor, width=lineWidth, style=line.style_solid)
 
         // Add tiny price label without background
         if showLabels
@@ -139,10 +138,9 @@ if barstate.islast and array.size(topResistanceLevels) > 0
     for i = 0 to array.size(topResistanceLevels) - 1
         float level = array.get(topResistanceLevels, i)
 
-        // Draw horizontal line
-        line.new(bar_index - lookbackBars, level, bar_index + 20, level,
-                 color=resistanceColor, width=lineWidth, style=line.style_solid,
-                 extend=extend.right)
+        // Draw short horizontal line (local view only)
+        line.new(bar_index - 100, level, bar_index + 20, level,
+                 color=resistanceColor, width=lineWidth, style=line.style_solid)
 
         // Add tiny price label without background
         if showLabels
