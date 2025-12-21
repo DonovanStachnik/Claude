@@ -38,8 +38,6 @@ minPriceChange = input.float(2.0, "Min Price Change %", minval=0.5, maxval=10.0,
 // Display Settings
 showBullishDiv = input.bool(true, "Show Bullish Divergence (Bottoms)", group="Display")
 showBearishDiv = input.bool(true, "Show Bearish Divergence (Tops)", group="Display")
-showLabels = input.bool(true, "Show Divergence Labels", group="Display")
-showDivLines = input.bool(true, "Show Divergence Lines", group="Display")
 
 // Visual Settings
 bullishDivColor = input.color(color.new(#00FF00, 0), "Bullish Divergence Color", group="Visual")
@@ -197,41 +195,27 @@ hline(70, "Overbought", color=color.new(color.red, 50), linestyle=hline.style_do
 hline(50, "Midline", color=color.new(color.gray, 70), linestyle=hline.style_dotted)
 hline(30, "Oversold", color=color.new(color.green, 50), linestyle=hline.style_dotted)
 
-// Background coloring for overbought/oversold
-bgcolor(rsi > 70 ? color.new(color.red, 90) : na, title="Overbought Zone")
-bgcolor(rsi < 30 ? color.new(color.green, 90) : na, title="Oversold Zone")
+// Clean background coloring for signals
+bgcolor(bullishDivergence and showBullishDiv ? color.new(color.green, 85) : na, title="BUY Signal")
+bgcolor(bearishDivergence and showBearishDiv ? color.new(color.red, 85) : na, title="SELL Signal")
 
-// Draw Divergence Lines
-if showDivLines
-    // Bullish Divergence Lines
-    if bullishDivergence and not na(bullishDivBar1) and not na(bullishDivBar2)
-        // Draw line connecting the two RSI lows
-        line.new(bullishDivBar1, bullishDivRSI1, bullishDivBar2, bullishDivRSI2,
-                 color=bullishDivColor, width=2, style=line.style_solid)
-
-    // Bearish Divergence Lines
-    if bearishDivergence and not na(bearishDivBar1) and not na(bearishDivBar2)
-        // Draw line connecting the two RSI highs
-        line.new(bearishDivBar1, bearishDivRSI1, bearishDivBar2, bearishDivRSI2,
-                 color=bearishDivColor, width=2, style=line.style_solid)
-
-// Divergence Labels
-if bullishDivergence and showLabels and showBullishDiv
+// Simple text labels for entry/exit
+if bullishDivergence and showBullishDiv
     label.new(bar_index, rsi,
-             text="BULLISH DIV\nLocal Bottom\nRSI: " + str.tostring(rsi, "#.##"),
-             color=color.new(bullishDivColor, 0),
+             text="BUY",
+             color=color.new(color.green, 0),
              textcolor=color.white,
              style=label.style_label_up,
-             size=size.small,
+             size=size.large,
              textalign=text.align_center)
 
-if bearishDivergence and showLabels and showBearishDiv
+if bearishDivergence and showBearishDiv
     label.new(bar_index, rsi,
-             text="BEARISH DIV\nLocal Top\nRSI: " + str.tostring(rsi, "#.##"),
-             color=color.new(bearishDivColor, 0),
+             text="SELL",
+             color=color.new(color.red, 0),
              textcolor=color.white,
              style=label.style_label_down,
-             size=size.small,
+             size=size.large,
              textalign=text.align_center)
 
 // ==================================================================================
