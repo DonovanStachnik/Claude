@@ -128,18 +128,16 @@ if not na(pivotLowPrice) and not na(pivotLowRSI) and showBullishDiv and array.si
         if (currentBar - previousBar) <= maxLookbackRange
             float priceChangePercent = math.abs((currentPrice - previousPrice) / previousPrice * 100)
 
-            // BULLISH DIVERGENCE: Price lower low, RSI higher low + Quality filters
+            // BULLISH DIVERGENCE: Price lower low, RSI higher low
             if currentPrice < previousPrice and currentRSI > previousRSI
-                if (currentRSI - previousRSI) >= minDivergenceStrength
-                    if currentRSI < rsiOversoldThreshold and priceChangePercent >= minPriceChange
-                        bullishDivergence := true
-                        bullishDivBar1 := previousBar
-                        bullishDivBar2 := currentBar
-                        bullishDivPrice1 := previousPrice
-                        bullishDivPrice2 := currentPrice
-                        bullishDivRSI1 := previousRSI
-                        bullishDivRSI2 := currentRSI
-                        break
+                bullishDivergence := true
+                bullishDivBar1 := previousBar
+                bullishDivBar2 := currentBar
+                bullishDivPrice1 := previousPrice
+                bullishDivPrice2 := currentPrice
+                bullishDivRSI1 := previousRSI
+                bullishDivRSI2 := currentRSI
+                break
 
 // Detect BEARISH DIVERGENCE (Price makes higher high, RSI makes lower high)
 var bool bearishDivergence = false
@@ -170,18 +168,16 @@ if not na(pivotHighPrice) and not na(pivotHighRSI) and showBearishDiv and array.
         if (currentBar - previousBar) <= maxLookbackRange
             float priceChangePercent = math.abs((currentPrice - previousPrice) / previousPrice * 100)
 
-            // BEARISH DIVERGENCE: Price higher high, RSI lower high + Quality filters
+            // BEARISH DIVERGENCE: Price higher high, RSI lower high
             if currentPrice > previousPrice and currentRSI < previousRSI
-                if (previousRSI - currentRSI) >= minDivergenceStrength
-                    if currentRSI > rsiOverboughtThreshold and priceChangePercent >= minPriceChange
-                        bearishDivergence := true
-                        bearishDivBar1 := previousBar
-                        bearishDivBar2 := currentBar
-                        bearishDivPrice1 := previousPrice
-                        bearishDivPrice2 := currentPrice
-                        bearishDivRSI1 := previousRSI
-                        bearishDivRSI2 := currentRSI
-                        break
+                bearishDivergence := true
+                bearishDivBar1 := previousBar
+                bearishDivBar2 := currentBar
+                bearishDivPrice1 := previousPrice
+                bearishDivPrice2 := currentPrice
+                bearishDivRSI1 := previousRSI
+                bearishDivRSI2 := currentRSI
+                break
 
 // ==================================================================================
 // VISUAL DISPLAY
