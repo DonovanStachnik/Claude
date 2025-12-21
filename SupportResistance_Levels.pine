@@ -199,17 +199,19 @@ if barstate.islast
 
 // Alert when price touches support
 touchedSupport = false
-for i = 0 to array.size(topSupportLevels) - 1
-    float level = array.get(topSupportLevels, i)
-    if low <= level * 1.005 and low >= level * 0.995
-        touchedSupport := true
+if array.size(topSupportLevels) > 0
+    for i = 0 to array.size(topSupportLevels) - 1
+        float level = array.get(topSupportLevels, i)
+        if low <= level * 1.005 and low >= level * 0.995
+            touchedSupport := true
 
 // Alert when price touches resistance
 touchedResistance = false
-for i = 0 to array.size(topResistanceLevels) - 1
-    float level = array.get(topResistanceLevels, i)
-    if high >= level * 0.995 and high <= level * 1.005
-        touchedResistance := true
+if array.size(topResistanceLevels) > 0
+    for i = 0 to array.size(topResistanceLevels) - 1
+        float level = array.get(topResistanceLevels, i)
+        if high >= level * 0.995 and high <= level * 1.005
+            touchedResistance := true
 
 alertcondition(touchedSupport, "Price at Support", "Price touching support level - potential bounce")
 alertcondition(touchedResistance, "Price at Resistance", "Price touching resistance level - potential reversal")
