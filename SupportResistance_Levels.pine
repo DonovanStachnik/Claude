@@ -17,9 +17,9 @@ indicator("Support & Resistance Levels - Key Price Zones",
 // ==================================================================================
 
 // Detection Settings
-pivotLength = input.int(10, "Pivot Detection Length", minval=5, maxval=50, group="Detection",
+pivotLength = input.int(5, "Pivot Detection Length", minval=3, maxval=50, group="Detection",
                         tooltip="Number of bars to look left/right for pivot points")
-maxLevels = input.int(3, "Max S/R Levels to Show", minval=1, maxval=8, group="Detection",
+maxLevels = input.int(5, "Max S/R Levels to Show", minval=1, maxval=10, group="Detection",
                       tooltip="Maximum number of support and resistance levels to display")
 lookbackBars = input.int(500, "Lookback Period", minval=100, maxval=2000, group="Detection",
                          tooltip="How far back to search for S/R levels")
@@ -54,7 +54,7 @@ var array<int> resistanceTouches = array.new<int>()
 // Add new support level when pivot low is detected
 if not na(pivotLow)
     bool isNewLevel = true
-    float threshold = close * 0.015  // 1.5% threshold for "same level"
+    float threshold = close * 0.01  // 1% threshold for "same level"
 
     // Check if this level already exists (only if array has data)
     if array.size(supportLevels) > 0
@@ -73,7 +73,7 @@ if not na(pivotLow)
 // Add new resistance level when pivot high is detected
 if not na(pivotHigh)
     bool isNewLevel = true
-    float threshold = close * 0.015  // 1.5% threshold for "same level"
+    float threshold = close * 0.01  // 1% threshold for "same level"
 
     // Check if this level already exists (only if array has data)
     if array.size(resistanceLevels) > 0
