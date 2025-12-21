@@ -56,6 +56,13 @@ bool showBacktestStats = input.bool(true, "Show AI Predictor Table", group="Disp
 color buyColor = input.color(color.new(#10cab8, 0), "Buy Signal Color", group="Visual")
 color sellColor = input.color(color.new(#8080ff, 0), "Sell Signal Color", group="Visual")
 
+// Support/Resistance Settings
+bool showSupportResistance = input.bool(true, "Show Support/Resistance Levels", group="Support/Resistance")
+int srPivotLength = input.int(10, "Pivot Detection Length", minval=5, maxval=50, group="Support/Resistance")
+int maxSRLevels = input.int(3, "Max S/R Levels to Show", minval=1, maxval=5, group="Support/Resistance")
+color supportColor = input.color(color.new(#00FF00, 80), "Support Zone Color", group="Support/Resistance")
+color resistanceColor = input.color(color.new(#FF0000, 80), "Resistance Zone Color", group="Support/Resistance")
+
 // ==================================================================================
 // HELPER FUNCTIONS
 // ==================================================================================
@@ -557,6 +564,94 @@ sellPatternScore := sellPatternScore + (shootingStar or bearishEngulfing or even
 sellConfidenceScore = sellTrendScore + sellMomentumScore + sellVolumeScore + sellPatternScore
 
 // ==================================================================================
+// SUPPORT & RESISTANCE DETECTION
+// ==================================================================================
+
+// Pivot High Detection (Resistance Levels)
+pivotHigh = ta.pivothigh(high, srPivotLength, srPivotLength)
+
+// Pivot Low Detection (Support Levels)
+pivotLow = ta.pivotlow(low, srPivotLength, srPivotLength)
+
+// Arrays to store support/resistance levels
+var array<float> supportLevels = array.new<float>()
+var array<float> resistanceLevels = array.new<float>()
+var array<int> supportBars = array.new<int>()
+var array<int> resistanceBars = array.new<int>()
+
+// Add new pivot lows as support levels
+if not na(pivotLow) and showSupportResistance
+    // Check if this level is significantly different from existing support levels
+    bool isNewLevel = true
+    float priceThreshold = close * 0.02  // 2% threshold for "same level"
+
+    for i = 0 to array.size(supportLevels) - 1
+        if math.abs(array.get(supportLevels, i) - pivotLow) < priceThreshold
+            isNewLevel := false
+            break
+
+    // Add new support level
+    if isNewLevel
+        array.push(supportLevels, pivotLow)
+        array.push(supportBars, bar_index - srPivotLength)
+
+        // Keep only most recent levels
+        if array.size(supportLevels) > maxSRLevels * 2
+            array.shift(supportLevels)
+            array.shift(supportBars)
+
+// Add new pivot highs as resistance levels
+if not na(pivotHigh) and showSupportResistance
+    // Check if this level is significantly different from existing resistance levels
+    bool isNewLevel = true
+    float priceThreshold = close * 0.02  // 2% threshold for "same level"
+
+    for i = 0 to array.size(resistanceLevels) - 1
+        if math.abs(array.get(resistanceLevels, i) - pivotHigh) < priceThreshold
+            isNewLevel := false
+            break
+
+    // Add new resistance level
+    if isNewLevel
+        array.push(resistanceLevels, pivotHigh)
+        array.push(resistanceBars, bar_index - srPivotLength)
+
+        // Keep only most recent levels
+        if array.size(resistanceLevels) > maxSRLevels * 2
+            array.shift(resistanceLevels)
+            array.shift(resistanceBars)
+
+// Find nearest support and resistance levels to current price
+var float nearestSupport = na
+var float nearestResistance = na
+
+if showSupportResistance
+    float closestSupportDist = 999999.0
+    float closestResistanceDist = 999999.0
+
+    // Find nearest support below current price
+    for i = 0 to array.size(supportLevels) - 1
+        float level = array.get(supportLevels, i)
+        if level < close
+            float dist = close - level
+            if dist < closestSupportDist
+                closestSupportDist := dist
+                nearestSupport := level
+
+    // Find nearest resistance above current price
+    for i = 0 to array.size(resistanceLevels) - 1
+        float level = array.get(resistanceLevels, i)
+        if level > close
+            float dist = level - close
+            if dist < closestResistanceDist
+                closestResistanceDist := dist
+                nearestResistance := level
+
+// Check if price is near support or resistance (within 2%)
+nearSupport = not na(nearestSupport) and close <= nearestSupport * 1.02 and close >= nearestSupport * 0.98
+nearResistance = not na(nearestResistance) and close >= nearestResistance * 0.98 and close <= nearestResistance * 1.02
+
+// ==================================================================================
 // SIMPLE SIGNAL GENERATION - GREEN X = BUY, RED X = EXIT
 // ==================================================================================
 
@@ -586,6 +681,24 @@ if sellSignal
 plot(ema21, "EMA 21", color=color.new(color.blue, 0), linewidth=1)
 plot(ema50, "EMA 50", color=color.new(color.orange, 0), linewidth=2)
 plot(ema200, "EMA 200", color=color.new(color.red, 0), linewidth=2)
+
+// SUPPORT & RESISTANCE LEVELS - Horizontal lines showing key price levels
+if showSupportResistance
+    // Draw support levels (green lines below price)
+    for i = 0 to math.min(array.size(supportLevels) - 1, maxSRLevels - 1)
+        if i < array.size(supportLevels)
+            float level = array.get(supportLevels, array.size(supportLevels) - 1 - i)
+            line.new(bar_index - 100, level, bar_index + 20, level,
+                     color=supportColor, width=2, style=line.style_solid,
+                     extend=extend.right)
+
+    // Draw resistance levels (red lines above price)
+    for i = 0 to math.min(array.size(resistanceLevels) - 1, maxSRLevels - 1)
+        if i < array.size(resistanceLevels)
+            float level = array.get(resistanceLevels, array.size(resistanceLevels) - 1 - i)
+            line.new(bar_index - 100, level, bar_index + 20, level,
+                     color=resistanceColor, width=2, style=line.style_solid,
+                     extend=extend.right)
 
 // SUITE DIAMONDS - Professional visual markers for momentum shifts
 // Green Cross = Bullish momentum (appear near local LOWS/bottoms)

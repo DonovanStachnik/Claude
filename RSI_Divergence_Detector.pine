@@ -1,0 +1,229 @@
+//@version=6
+indicator("RSI Divergence Detector - Reversal Signals",
+         shorttitle="RSI Div",
+         overlay=false)
+
+// ==================================================================================
+// RSI DIVERGENCE DETECTOR FOR CATCHING LOCAL BOTTOMS & TOPS
+// ==================================================================================
+// Detects when price makes new lows/highs but RSI doesn't - signals reversal coming
+// Regular Bullish Divergence = Price lower low, RSI higher low (BOTTOM SIGNAL)
+// Regular Bearish Divergence = Price higher high, RSI lower high (TOP SIGNAL)
+// ==================================================================================
+
+// ==================================================================================
+// INPUT SETTINGS
+// ==================================================================================
+
+// RSI Settings
+int rsiLength = input.int(14, "RSI Length", minval=2, group="RSI Settings")
+string rsiSource = input.source(close, "RSI Source", group="RSI Settings")
+
+// Divergence Detection Settings
+int pivotLookback = input.int(5, "Pivot Lookback", minval=2, maxval=20, group="Divergence Settings",
+                              tooltip="Number of bars to look left and right for pivot detection")
+int maxLookbackRange = input.int(60, "Max Divergence Range", minval=10, maxval=200, group="Divergence Settings",
+                                 tooltip="Maximum bars to look back for divergence pattern")
+float minDivergenceStrength = input.float(5.0, "Min Divergence Strength", minval=1.0, maxval=20.0, group="Divergence Settings",
+                                          tooltip="Minimum RSI difference to consider valid divergence")
+
+// Display Settings
+bool showBullishDiv = input.bool(true, "Show Bullish Divergence (Bottoms)", group="Display")
+bool showBearishDiv = input.bool(true, "Show Bearish Divergence (Tops)", group="Display")
+bool showLabels = input.bool(true, "Show Divergence Labels", group="Display")
+bool showDivLines = input.bool(true, "Show Divergence Lines", group="Display")
+
+// Visual Settings
+color bullishDivColor = input.color(color.new(#00FF00, 0), "Bullish Divergence Color", group="Visual")
+color bearishDivColor = input.color(color.new(#FF0000, 0), "Bearish Divergence Color", group="Visual")
+color rsiColor = input.color(color.new(#2196F3, 0), "RSI Line Color", group="Visual")
+
+// ==================================================================================
+// RSI CALCULATION
+// ==================================================================================
+
+rsi = ta.rsi(rsiSource, rsiLength)
+
+// ==================================================================================
+// PIVOT DETECTION
+// ==================================================================================
+
+// Pivot Lows (potential bullish divergence points)
+pivotLowPrice = ta.pivotlow(low, pivotLookback, pivotLookback)
+pivotLowRSI = ta.pivotlow(rsi, pivotLookback, pivotLookback)
+
+// Pivot Highs (potential bearish divergence points)
+pivotHighPrice = ta.pivothigh(high, pivotLookback, pivotLookback)
+pivotHighRSI = ta.pivothigh(rsi, pivotLookback, pivotLookback)
+
+// ==================================================================================
+// DIVERGENCE DETECTION LOGIC
+// ==================================================================================
+
+// Store pivot information
+var array<float> pivotLowPrices = array.new<float>()
+var array<float> pivotLowRSIs = array.new<float>()
+var array<int> pivotLowBars = array.new<int>()
+
+var array<float> pivotHighPrices = array.new<float>()
+var array<float> pivotHighRSIs = array.new<float>()
+var array<int> pivotHighBars = array.new<int>()
+
+// Track pivot lows
+if not na(pivotLowPrice) and not na(pivotLowRSI)
+    array.push(pivotLowPrices, pivotLowPrice)
+    array.push(pivotLowRSIs, pivotLowRSI)
+    array.push(pivotLowBars, bar_index - pivotLookback)
+
+    // Keep only recent pivots
+    if array.size(pivotLowPrices) > 10
+        array.shift(pivotLowPrices)
+        array.shift(pivotLowRSIs)
+        array.shift(pivotLowBars)
+
+// Track pivot highs
+if not na(pivotHighPrice) and not na(pivotHighRSI)
+    array.push(pivotHighPrices, pivotHighPrice)
+    array.push(pivotHighRSIs, pivotHighRSI)
+    array.push(pivotHighBars, bar_index - pivotLookback)
+
+    // Keep only recent pivots
+    if array.size(pivotHighPrices) > 10
+        array.shift(pivotHighPrices)
+        array.shift(pivotHighRSIs)
+        array.shift(pivotHighBars)
+
+// Detect BULLISH DIVERGENCE (Price makes lower low, RSI makes higher low)
+var bool bullishDivergence = false
+var int bullishDivBar1 = na
+var int bullishDivBar2 = na
+var float bullishDivPrice1 = na
+var float bullishDivPrice2 = na
+var float bullishDivRSI1 = na
+var float bullishDivRSI2 = na
+
+bullishDivergence := false
+
+if array.size(pivotLowPrices) >= 2 and showBullishDiv
+    // Get the two most recent pivot lows
+    int lastIndex = array.size(pivotLowPrices) - 1
+
+    for i = lastIndex - 1 to math.max(0, lastIndex - 5)
+        float currentPrice = array.get(pivotLowPrices, lastIndex)
+        float previousPrice = array.get(pivotLowPrices, i)
+        float currentRSI = array.get(pivotLowRSIs, lastIndex)
+        float previousRSI = array.get(pivotLowRSIs, i)
+        int currentBar = array.get(pivotLowBars, lastIndex)
+        int previousBar = array.get(pivotLowBars, i)
+
+        // Check if within lookback range
+        if (currentBar - previousBar) <= maxLookbackRange
+            // BULLISH DIVERGENCE: Price lower low, RSI higher low
+            if currentPrice < previousPrice and currentRSI > previousRSI and (currentRSI - previousRSI) >= minDivergenceStrength
+                bullishDivergence := true
+                bullishDivBar1 := previousBar
+                bullishDivBar2 := currentBar
+                bullishDivPrice1 := previousPrice
+                bullishDivPrice2 := currentPrice
+                bullishDivRSI1 := previousRSI
+                bullishDivRSI2 := currentRSI
+                break
+
+// Detect BEARISH DIVERGENCE (Price makes higher high, RSI makes lower high)
+var bool bearishDivergence = false
+var int bearishDivBar1 = na
+var int bearishDivBar2 = na
+var float bearishDivPrice1 = na
+var float bearishDivPrice2 = na
+var float bearishDivRSI1 = na
+var float bearishDivRSI2 = na
+
+bearishDivergence := false
+
+if array.size(pivotHighPrices) >= 2 and showBearishDiv
+    // Get the two most recent pivot highs
+    int lastIndex = array.size(pivotHighPrices) - 1
+
+    for i = lastIndex - 1 to math.max(0, lastIndex - 5)
+        float currentPrice = array.get(pivotHighPrices, lastIndex)
+        float previousPrice = array.get(pivotHighPrices, i)
+        float currentRSI = array.get(pivotHighRSIs, lastIndex)
+        float previousRSI = array.get(pivotHighRSIs, i)
+        int currentBar = array.get(pivotHighBars, lastIndex)
+        int previousBar = array.get(pivotHighBars, i)
+
+        // Check if within lookback range
+        if (currentBar - previousBar) <= maxLookbackRange
+            // BEARISH DIVERGENCE: Price higher high, RSI lower high
+            if currentPrice > previousPrice and currentRSI < previousRSI and (previousRSI - currentRSI) >= minDivergenceStrength
+                bearishDivergence := true
+                bearishDivBar1 := previousBar
+                bearishDivBar2 := currentBar
+                bearishDivPrice1 := previousPrice
+                bearishDivPrice2 := currentPrice
+                bearishDivRSI1 := previousRSI
+                bearishDivRSI2 := currentRSI
+                break
+
+// ==================================================================================
+// VISUAL DISPLAY
+// ==================================================================================
+
+// Plot RSI
+plot(rsi, "RSI", color=rsiColor, linewidth=2)
+
+// RSI Overbought/Oversold levels
+hline(70, "Overbought", color=color.new(color.red, 50), linestyle=hline.style_dotted)
+hline(50, "Midline", color=color.new(color.gray, 70), linestyle=hline.style_dotted)
+hline(30, "Oversold", color=color.new(color.green, 50), linestyle=hline.style_dotted)
+
+// Background coloring for overbought/oversold
+bgcolor(rsi > 70 ? color.new(color.red, 90) : na, title="Overbought Zone")
+bgcolor(rsi < 30 ? color.new(color.green, 90) : na, title="Oversold Zone")
+
+// Draw Divergence Lines
+if showDivLines
+    // Bullish Divergence Lines
+    if bullishDivergence and not na(bullishDivBar1) and not na(bullishDivBar2)
+        // Draw line connecting the two RSI lows
+        line.new(bullishDivBar1, bullishDivRSI1, bullishDivBar2, bullishDivRSI2,
+                 color=bullishDivColor, width=2, style=line.style_solid)
+
+    // Bearish Divergence Lines
+    if bearishDivergence and not na(bearishDivBar1) and not na(bearishDivBar2)
+        // Draw line connecting the two RSI highs
+        line.new(bearishDivBar1, bearishDivRSI1, bearishDivBar2, bearishDivRSI2,
+                 color=bearishDivColor, width=2, style=line.style_solid)
+
+// Plot Divergence Signals
+plotshape(bullishDivergence and showBullishDiv, "Bullish Divergence", shape.xcross, location.absolute,
+         bullishDivColor, size=size.small, text="BULLISH\nDIV")
+
+plotshape(bearishDivergence and showBearishDiv, "Bearish Divergence", shape.xcross, location.absolute,
+         bearishDivColor, size=size.small, text="BEARISH\nDIV")
+
+// Divergence Labels
+if bullishDivergence and showLabels and showBullishDiv
+    label.new(bar_index, rsi,
+             text="BULLISH DIV\nLocal Bottom\nRSI: " + str.tostring(rsi, "#.##"),
+             color=color.new(bullishDivColor, 0),
+             textcolor=color.white,
+             style=label.style_label_up,
+             size=size.normal,
+             textalign=text.align_center)
+
+if bearishDivergence and showLabels and showBearishDiv
+    label.new(bar_index, rsi,
+             text="BEARISH DIV\nLocal Top\nRSI: " + str.tostring(rsi, "#.##"),
+             color=color.new(bearishDivColor, 0),
+             textcolor=color.white,
+             style=label.style_label_down,
+             size=size.normal,
+             textalign=text.align_center)
+
+// ==================================================================================
+// ALERTS
+// ==================================================================================
+
+alertcondition(bullishDivergence, "Bullish Divergence Detected", "Bullish Divergence: Potential local bottom - price lower low, RSI higher low")
+alertcondition(bearishDivergence, "Bearish Divergence Detected", "Bearish Divergence: Potential local top - price higher high, RSI lower high")
