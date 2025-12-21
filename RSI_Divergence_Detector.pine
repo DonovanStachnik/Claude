@@ -131,11 +131,7 @@ if array.size(pivotLowPrices) >= 2 and showBullishDiv
 
             // BULLISH DIVERGENCE: Price lower low, RSI higher low
             // Quality filters: RSI must be oversold, strong divergence, significant price move
-            bool validBullishDiv = currentPrice < previousPrice and
-                                    currentRSI > previousRSI and
-                                    (currentRSI - previousRSI) >= minDivergenceStrength and
-                                    currentRSI < rsiOversoldThreshold and
-                                    priceChangePercent >= minPriceChange
+            bool validBullishDiv = (currentPrice < previousPrice and currentRSI > previousRSI and (currentRSI - previousRSI) >= minDivergenceStrength and currentRSI < rsiOversoldThreshold and priceChangePercent >= minPriceChange)
 
             if validBullishDiv
                 bullishDivergence := true
@@ -177,11 +173,7 @@ if array.size(pivotHighPrices) >= 2 and showBearishDiv
 
             // BEARISH DIVERGENCE: Price higher high, RSI lower high
             // Quality filters: RSI must be overbought, strong divergence, significant price move
-            bool validBearishDiv = currentPrice > previousPrice and
-                                    currentRSI < previousRSI and
-                                    (previousRSI - currentRSI) >= minDivergenceStrength and
-                                    currentRSI > rsiOverboughtThreshold and
-                                    priceChangePercent >= minPriceChange
+            bool validBearishDiv = (currentPrice > previousPrice and currentRSI < previousRSI and (previousRSI - currentRSI) >= minDivergenceStrength and currentRSI > rsiOverboughtThreshold and priceChangePercent >= minPriceChange)
 
             if validBearishDiv
                 bearishDivergence := true
