@@ -20,12 +20,20 @@ rsiLength = input.int(14, "RSI Length", minval=2, group="RSI Settings")
 src = input.source(close, "RSI Source", group="RSI Settings")
 
 // Divergence Detection Settings
-pivotLookback = input.int(5, "Pivot Lookback", minval=2, maxval=20, group="Divergence Settings",
+pivotLookback = input.int(8, "Pivot Lookback", minval=5, maxval=20, group="Divergence Settings",
                           tooltip="Number of bars to look left and right for pivot detection")
 maxLookbackRange = input.int(60, "Max Divergence Range", minval=10, maxval=200, group="Divergence Settings",
                              tooltip="Maximum bars to look back for divergence pattern")
-minDivergenceStrength = input.float(5.0, "Min Divergence Strength", minval=1.0, maxval=20.0, group="Divergence Settings",
+minDivergenceStrength = input.float(10.0, "Min Divergence Strength", minval=5.0, maxval=30.0, group="Divergence Settings",
                                     tooltip="Minimum RSI difference to consider valid divergence")
+
+// Quality Filters
+rsiOversoldThreshold = input.float(40.0, "RSI Oversold Threshold (Bullish Div)", minval=20.0, maxval=50.0, group="Quality Filters",
+                                   tooltip="Only show bullish divergence when RSI is below this level")
+rsiOverboughtThreshold = input.float(60.0, "RSI Overbought Threshold (Bearish Div)", minval=50.0, maxval=80.0, group="Quality Filters",
+                                     tooltip="Only show bearish divergence when RSI is above this level")
+minPriceChange = input.float(3.0, "Min Price Change %", minval=1.0, maxval=10.0, group="Quality Filters",
+                             tooltip="Minimum price movement required for valid divergence")
 
 // Display Settings
 showBullishDiv = input.bool(true, "Show Bullish Divergence (Bottoms)", group="Display")
@@ -118,8 +126,18 @@ if array.size(pivotLowPrices) >= 2 and showBullishDiv
 
         // Check if within lookback range
         if (currentBar - previousBar) <= maxLookbackRange
+            // Calculate price change percentage
+            float priceChangePercent = math.abs((currentPrice - previousPrice) / previousPrice * 100)
+
             // BULLISH DIVERGENCE: Price lower low, RSI higher low
-            if currentPrice < previousPrice and currentRSI > previousRSI and (currentRSI - previousRSI) >= minDivergenceStrength
+            // Quality filters: RSI must be oversold, strong divergence, significant price move
+            bool validBullishDiv = currentPrice < previousPrice and
+                                    currentRSI > previousRSI and
+                                    (currentRSI - previousRSI) >= minDivergenceStrength and
+                                    currentRSI < rsiOversoldThreshold and
+                                    priceChangePercent >= minPriceChange
+
+            if validBullishDiv
                 bullishDivergence := true
                 bullishDivBar1 := previousBar
                 bullishDivBar2 := currentBar
@@ -154,8 +172,18 @@ if array.size(pivotHighPrices) >= 2 and showBearishDiv
 
         // Check if within lookback range
         if (currentBar - previousBar) <= maxLookbackRange
+            // Calculate price change percentage
+            float priceChangePercent = math.abs((currentPrice - previousPrice) / previousPrice * 100)
+
             // BEARISH DIVERGENCE: Price higher high, RSI lower high
-            if currentPrice > previousPrice and currentRSI < previousRSI and (previousRSI - currentRSI) >= minDivergenceStrength
+            // Quality filters: RSI must be overbought, strong divergence, significant price move
+            bool validBearishDiv = currentPrice > previousPrice and
+                                    currentRSI < previousRSI and
+                                    (previousRSI - currentRSI) >= minDivergenceStrength and
+                                    currentRSI > rsiOverboughtThreshold and
+                                    priceChangePercent >= minPriceChange
+
+            if validBearishDiv
                 bearishDivergence := true
                 bearishDivBar1 := previousBar
                 bearishDivBar2 := currentBar
@@ -209,7 +237,7 @@ if bullishDivergence and showLabels and showBullishDiv
              color=color.new(bullishDivColor, 0),
              textcolor=color.white,
              style=label.style_label_up,
-             size=size.normal,
+             size=size.small,
              textalign=text.align_center)
 
 if bearishDivergence and showLabels and showBearishDiv
@@ -218,7 +246,7 @@ if bearishDivergence and showLabels and showBearishDiv
              color=color.new(bearishDivColor, 0),
              textcolor=color.white,
              style=label.style_label_down,
-             size=size.normal,
+             size=size.small,
              textalign=text.align_center)
 
 // ==================================================================================
