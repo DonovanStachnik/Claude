@@ -1,0 +1,215 @@
+//@version=6
+indicator("Support & Resistance Levels - Key Price Zones",
+         shorttitle="S/R Levels",
+         overlay=true,
+         max_lines_count=500)
+
+// ==================================================================================
+// SUPPORT & RESISTANCE DETECTOR FOR SWING TRADING
+// ==================================================================================
+// Automatically identifies key support and resistance levels
+// Support = Green horizontal lines (price tends to bounce here)
+// Resistance = Red horizontal lines (price tends to reverse here)
+// ==================================================================================
+
+// ==================================================================================
+// INPUT SETTINGS
+// ==================================================================================
+
+// Detection Settings
+pivotLength = input.int(10, "Pivot Detection Length", minval=5, maxval=50, group="Detection",
+                        tooltip="Number of bars to look left/right for pivot points")
+maxLevels = input.int(3, "Max S/R Levels to Show", minval=1, maxval=8, group="Detection",
+                      tooltip="Maximum number of support and resistance levels to display")
+lookbackBars = input.int(500, "Lookback Period", minval=100, maxval=2000, group="Detection",
+                         tooltip="How far back to search for S/R levels")
+
+// Visual Settings
+supportColor = input.color(color.new(#00FF00, 70), "Support Color", group="Visual")
+resistanceColor = input.color(color.new(#FF0000, 70), "Resistance Color", group="Visual")
+lineWidth = input.int(2, "Line Width", minval=1, maxval=5, group="Visual")
+showLabels = input.bool(true, "Show Price Labels", group="Visual")
+
+// ==================================================================================
+// PIVOT DETECTION
+// ==================================================================================
+
+// Detect pivot highs (potential resistance)
+pivotHigh = ta.pivothigh(high, pivotLength, pivotLength)
+
+// Detect pivot lows (potential support)
+pivotLow = ta.pivotlow(low, pivotLength, pivotLength)
+
+// ==================================================================================
+// SUPPORT & RESISTANCE LEVEL TRACKING
+// ==================================================================================
+
+// Arrays to store significant S/R levels
+var array<float> supportLevels = array.new<float>()
+var array<int> supportTouches = array.new<int>()
+
+var array<float> resistanceLevels = array.new<float>()
+var array<int> resistanceTouches = array.new<int>()
+
+// Add new support level when pivot low is detected
+if not na(pivotLow)
+    bool isNewLevel = true
+    float threshold = close * 0.015  // 1.5% threshold for "same level"
+
+    // Check if this level already exists
+    for i = 0 to array.size(supportLevels) - 1
+        if math.abs(array.get(supportLevels, i) - pivotLow) < threshold
+            // Level exists, increment touch count
+            array.set(supportTouches, i, array.get(supportTouches, i) + 1)
+            isNewLevel := false
+            break
+
+    // Add new level if it doesn't exist
+    if isNewLevel
+        array.push(supportLevels, pivotLow)
+        array.push(supportTouches, 1)
+
+// Add new resistance level when pivot high is detected
+if not na(pivotHigh)
+    bool isNewLevel = true
+    float threshold = close * 0.015  // 1.5% threshold for "same level"
+
+    // Check if this level already exists
+    for i = 0 to array.size(resistanceLevels) - 1
+        if math.abs(array.get(resistanceLevels, i) - pivotHigh) < threshold
+            // Level exists, increment touch count
+            array.set(resistanceTouches, i, array.get(resistanceTouches, i) + 1)
+            isNewLevel := false
+            break
+
+    // Add new level if it doesn't exist
+    if isNewLevel
+        array.push(resistanceLevels, pivotHigh)
+        array.push(resistanceTouches, 1)
+
+// ==================================================================================
+// FIND MOST SIGNIFICANT LEVELS
+// ==================================================================================
+
+// Get the most touched/significant support levels
+var array<float> topSupportLevels = array.new<float>()
+topSupportLevels := array.new<float>()
+
+if array.size(supportLevels) > 0
+    // Create copy of arrays for sorting
+    var array<float> tempSupport = array.copy(supportLevels)
+    var array<int> tempSupportTouches = array.copy(supportTouches)
+
+    // Get top N levels by touch count
+    for j = 0 to math.min(maxLevels - 1, array.size(tempSupport) - 1)
+        if array.size(tempSupport) > 0
+            // Find level with most touches
+            int maxIdx = 0
+            int maxTouches = array.get(tempSupportTouches, 0)
+
+            for i = 1 to array.size(tempSupportTouches) - 1
+                if array.get(tempSupportTouches, i) > maxTouches
+                    maxTouches := array.get(tempSupportTouches, i)
+                    maxIdx := i
+
+            // Add to top levels
+            array.push(topSupportLevels, array.get(tempSupport, maxIdx))
+
+            // Remove from temp arrays
+            array.remove(tempSupport, maxIdx)
+            array.remove(tempSupportTouches, maxIdx)
+
+// Get the most touched/significant resistance levels
+var array<float> topResistanceLevels = array.new<float>()
+topResistanceLevels := array.new<float>()
+
+if array.size(resistanceLevels) > 0
+    // Create copy of arrays for sorting
+    var array<float> tempResistance = array.copy(resistanceLevels)
+    var array<int> tempResistanceTouches = array.copy(resistanceTouches)
+
+    // Get top N levels by touch count
+    for j = 0 to math.min(maxLevels - 1, array.size(tempResistance) - 1)
+        if array.size(tempResistance) > 0
+            // Find level with most touches
+            int maxIdx = 0
+            int maxTouches = array.get(tempResistanceTouches, 0)
+
+            for i = 1 to array.size(tempResistanceTouches) - 1
+                if array.get(tempResistanceTouches, i) > maxTouches
+                    maxTouches := array.get(tempResistanceTouches, i)
+                    maxIdx := i
+
+            // Add to top levels
+            array.push(topResistanceLevels, array.get(tempResistance, maxIdx))
+
+            // Remove from temp arrays
+            array.remove(tempResistance, maxIdx)
+            array.remove(tempResistanceTouches, maxIdx)
+
+// ==================================================================================
+// VISUAL DISPLAY - HORIZONTAL LINES
+// ==================================================================================
+
+// Draw support levels (green lines)
+if barstate.islast
+    for i = 0 to array.size(topSupportLevels) - 1
+        float level = array.get(topSupportLevels, i)
+
+        // Only show levels near current price (within reasonable range)
+        if level > close * 0.7 and level < close * 1.3
+            // Draw horizontal line
+            line.new(bar_index - lookbackBars, level, bar_index + 20, level,
+                     color=supportColor, width=lineWidth, style=line.style_solid,
+                     extend=extend.right)
+
+            // Add price label
+            if showLabels
+                label.new(bar_index, level,
+                         text="Support: $" + str.tostring(level, format.mintick),
+                         color=supportColor,
+                         textcolor=color.white,
+                         style=label.style_label_left,
+                         size=size.small)
+
+// Draw resistance levels (red lines)
+if barstate.islast
+    for i = 0 to array.size(topResistanceLevels) - 1
+        float level = array.get(topResistanceLevels, i)
+
+        // Only show levels near current price (within reasonable range)
+        if level > close * 0.7 and level < close * 1.3
+            // Draw horizontal line
+            line.new(bar_index - lookbackBars, level, bar_index + 20, level,
+                     color=resistanceColor, width=lineWidth, style=line.style_solid,
+                     extend=extend.right)
+
+            // Add price label
+            if showLabels
+                label.new(bar_index, level,
+                         text="Resistance: $" + str.tostring(level, format.mintick),
+                         color=resistanceColor,
+                         textcolor=color.white,
+                         style=label.style_label_left,
+                         size=size.small)
+
+// ==================================================================================
+// ALERTS
+// ==================================================================================
+
+// Alert when price touches support
+touchedSupport = false
+for i = 0 to array.size(topSupportLevels) - 1
+    float level = array.get(topSupportLevels, i)
+    if low <= level * 1.005 and low >= level * 0.995
+        touchedSupport := true
+
+// Alert when price touches resistance
+touchedResistance = false
+for i = 0 to array.size(topResistanceLevels) - 1
+    float level = array.get(topResistanceLevels, i)
+    if high >= level * 0.995 and high <= level * 1.005
+        touchedResistance := true
+
+alertcondition(touchedSupport, "Price at Support", "Price touching support level - potential bounce")
+alertcondition(touchedResistance, "Price at Resistance", "Price touching resistance level - potential reversal")
