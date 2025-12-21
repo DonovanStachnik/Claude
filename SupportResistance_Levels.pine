@@ -56,13 +56,14 @@ if not na(pivotLow)
     bool isNewLevel = true
     float threshold = close * 0.015  // 1.5% threshold for "same level"
 
-    // Check if this level already exists
-    for i = 0 to array.size(supportLevels) - 1
-        if math.abs(array.get(supportLevels, i) - pivotLow) < threshold
-            // Level exists, increment touch count
-            array.set(supportTouches, i, array.get(supportTouches, i) + 1)
-            isNewLevel := false
-            break
+    // Check if this level already exists (only if array has data)
+    if array.size(supportLevels) > 0
+        for i = 0 to array.size(supportLevels) - 1
+            if math.abs(array.get(supportLevels, i) - pivotLow) < threshold
+                // Level exists, increment touch count
+                array.set(supportTouches, i, array.get(supportTouches, i) + 1)
+                isNewLevel := false
+                break
 
     // Add new level if it doesn't exist
     if isNewLevel
@@ -74,13 +75,14 @@ if not na(pivotHigh)
     bool isNewLevel = true
     float threshold = close * 0.015  // 1.5% threshold for "same level"
 
-    // Check if this level already exists
-    for i = 0 to array.size(resistanceLevels) - 1
-        if math.abs(array.get(resistanceLevels, i) - pivotHigh) < threshold
-            // Level exists, increment touch count
-            array.set(resistanceTouches, i, array.get(resistanceTouches, i) + 1)
-            isNewLevel := false
-            break
+    // Check if this level already exists (only if array has data)
+    if array.size(resistanceLevels) > 0
+        for i = 0 to array.size(resistanceLevels) - 1
+            if math.abs(array.get(resistanceLevels, i) - pivotHigh) < threshold
+                // Level exists, increment touch count
+                array.set(resistanceTouches, i, array.get(resistanceTouches, i) + 1)
+                isNewLevel := false
+                break
 
     // Add new level if it doesn't exist
     if isNewLevel
