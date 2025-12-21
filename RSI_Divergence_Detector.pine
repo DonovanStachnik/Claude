@@ -20,19 +20,19 @@ rsiLength = input.int(14, "RSI Length", minval=2, group="RSI Settings")
 src = input.source(close, "RSI Source", group="RSI Settings")
 
 // Divergence Detection Settings
-pivotLookback = input.int(7, "Pivot Lookback", minval=5, maxval=20, group="Divergence Settings",
+pivotLookback = input.int(5, "Pivot Lookback", minval=3, maxval=20, group="Divergence Settings",
                           tooltip="Number of bars to look left and right for pivot detection")
 maxLookbackRange = input.int(60, "Max Divergence Range", minval=10, maxval=200, group="Divergence Settings",
                              tooltip="Maximum bars to look back for divergence pattern")
-minDivergenceStrength = input.float(5.0, "Min Divergence Strength", minval=3.0, maxval=30.0, group="Divergence Settings",
+minDivergenceStrength = input.float(3.0, "Min Divergence Strength", minval=1.0, maxval=30.0, group="Divergence Settings",
                                     tooltip="Minimum RSI difference to consider valid divergence")
 
 // Quality Filters
-rsiOversoldThreshold = input.float(45.0, "RSI Oversold Threshold (Bullish Div)", minval=20.0, maxval=60.0, group="Quality Filters",
+rsiOversoldThreshold = input.float(50.0, "RSI Oversold Threshold (Bullish Div)", minval=20.0, maxval=60.0, group="Quality Filters",
                                    tooltip="Only show bullish divergence when RSI is below this level")
-rsiOverboughtThreshold = input.float(55.0, "RSI Overbought Threshold (Bearish Div)", minval=40.0, maxval=80.0, group="Quality Filters",
+rsiOverboughtThreshold = input.float(50.0, "RSI Overbought Threshold (Bearish Div)", minval=40.0, maxval=80.0, group="Quality Filters",
                                      tooltip="Only show bearish divergence when RSI is above this level")
-minPriceChange = input.float(2.0, "Min Price Change %", minval=0.5, maxval=10.0, group="Quality Filters",
+minPriceChange = input.float(1.0, "Min Price Change %", minval=0.1, maxval=10.0, group="Quality Filters",
                              tooltip="Minimum price movement required for valid divergence")
 
 // Display Settings
