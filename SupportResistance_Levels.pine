@@ -97,12 +97,12 @@ topSupportLevels := array.new<float>()
 
 if array.size(supportLevels) > 0
     // Create copy of arrays for sorting
-    var array<float> tempSupport = array.copy(supportLevels)
-    var array<int> tempSupportTouches = array.copy(supportTouches)
+    array<float> tempSupport = array.copy(supportLevels)
+    array<int> tempSupportTouches = array.copy(supportTouches)
 
     // Get top N levels by touch count
     for j = 0 to math.min(maxLevels - 1, array.size(tempSupport) - 1)
-        if array.size(tempSupport) > 0
+        if array.size(tempSupport) > 0 and array.size(tempSupportTouches) > 0
             // Find level with most touches
             int maxIdx = 0
             int maxTouches = array.get(tempSupportTouches, 0)
@@ -125,12 +125,12 @@ topResistanceLevels := array.new<float>()
 
 if array.size(resistanceLevels) > 0
     // Create copy of arrays for sorting
-    var array<float> tempResistance = array.copy(resistanceLevels)
-    var array<int> tempResistanceTouches = array.copy(resistanceTouches)
+    array<float> tempResistance = array.copy(resistanceLevels)
+    array<int> tempResistanceTouches = array.copy(resistanceTouches)
 
     // Get top N levels by touch count
     for j = 0 to math.min(maxLevels - 1, array.size(tempResistance) - 1)
-        if array.size(tempResistance) > 0
+        if array.size(tempResistance) > 0 and array.size(tempResistanceTouches) > 0
             // Find level with most touches
             int maxIdx = 0
             int maxTouches = array.get(tempResistanceTouches, 0)
