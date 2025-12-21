@@ -369,12 +369,17 @@ hvLow = hvStdDev < ta.sma(hvStdDev, 50)
 // PATTERN RECOGNITION
 // ==================================================================================
 
-// Support and Resistance
+// Support and Resistance (Using pivot-based detection - see SUPPORT & RESISTANCE DETECTION section)
+// These variables will be defined in the S/R detection section below
+var float nearestSupport = na
+var float nearestResistance = na
+var bool nearSupport = false
+var bool nearResistance = false
+
+// Legacy variables for compatibility
 lookback = 20
 resistance = ta.highest(high, lookback)
 support = ta.lowest(low, lookback)
-nearResistance = high >= resistance * 0.98
-nearSupport = low <= support * 1.02
 breakoutResistance = close > resistance[1]
 breakoutSupport = close < support[1]
 
@@ -622,12 +627,13 @@ if not na(pivotHigh) and showSupportResistance
             array.shift(resistanceBars)
 
 // Find nearest support and resistance levels to current price
-var float nearestSupport = na
-var float nearestResistance = na
-
 if showSupportResistance
     float closestSupportDist = 999999.0
     float closestResistanceDist = 999999.0
+
+    // Reset to na first
+    nearestSupport := na
+    nearestResistance := na
 
     // Find nearest support below current price
     for i = 0 to array.size(supportLevels) - 1
@@ -647,9 +653,14 @@ if showSupportResistance
                 closestResistanceDist := dist
                 nearestResistance := level
 
-// Check if price is near support or resistance (within 2%)
-nearSupport = not na(nearestSupport) and close <= nearestSupport * 1.02 and close >= nearestSupport * 0.98
-nearResistance = not na(nearestResistance) and close >= nearestResistance * 0.98 and close <= nearestResistance * 1.02
+    // Check if price is near support or resistance (within 2%)
+    nearSupport := not na(nearestSupport) and close <= nearestSupport * 1.02 and close >= nearestSupport * 0.98
+    nearResistance := not na(nearestResistance) and close >= nearestResistance * 0.98 and close <= nearestResistance * 1.02
+else
+    nearestSupport := na
+    nearestResistance := na
+    nearSupport := false
+    nearResistance := false
 
 // ==================================================================================
 // SIMPLE SIGNAL GENERATION - GREEN X = BUY, RED X = EXIT
