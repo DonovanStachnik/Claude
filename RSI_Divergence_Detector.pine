@@ -17,7 +17,7 @@ indicator("RSI Divergence Detector - Reversal Signals",
 
 // RSI Settings
 int rsiLength = input.int(14, "RSI Length", minval=2, group="RSI Settings")
-string rsiSource = input.source(close, "RSI Source", group="RSI Settings")
+rsiSource = input.source(close, "RSI Source", group="RSI Settings")
 
 // Divergence Detection Settings
 int pivotLookback = input.int(5, "Pivot Lookback", minval=2, maxval=20, group="Divergence Settings",
