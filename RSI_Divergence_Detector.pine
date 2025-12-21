@@ -16,33 +16,33 @@ indicator("RSI Divergence Detector - Reversal Signals",
 // ==================================================================================
 
 // RSI Settings
-int rsiLength = input.int(14, "RSI Length", minval=2, group="RSI Settings")
-float rsiSrc = input.source(close, "RSI Source", group="RSI Settings")
+rsiLength = input.int(14, "RSI Length", minval=2, group="RSI Settings")
+src = input.source(close, "RSI Source", group="RSI Settings")
 
 // Divergence Detection Settings
-int pivotLookback = input.int(5, "Pivot Lookback", minval=2, maxval=20, group="Divergence Settings",
-                              tooltip="Number of bars to look left and right for pivot detection")
-int maxLookbackRange = input.int(60, "Max Divergence Range", minval=10, maxval=200, group="Divergence Settings",
-                                 tooltip="Maximum bars to look back for divergence pattern")
-float minDivergenceStrength = input.float(5.0, "Min Divergence Strength", minval=1.0, maxval=20.0, group="Divergence Settings",
-                                          tooltip="Minimum RSI difference to consider valid divergence")
+pivotLookback = input.int(5, "Pivot Lookback", minval=2, maxval=20, group="Divergence Settings",
+                          tooltip="Number of bars to look left and right for pivot detection")
+maxLookbackRange = input.int(60, "Max Divergence Range", minval=10, maxval=200, group="Divergence Settings",
+                             tooltip="Maximum bars to look back for divergence pattern")
+minDivergenceStrength = input.float(5.0, "Min Divergence Strength", minval=1.0, maxval=20.0, group="Divergence Settings",
+                                    tooltip="Minimum RSI difference to consider valid divergence")
 
 // Display Settings
-bool showBullishDiv = input.bool(true, "Show Bullish Divergence (Bottoms)", group="Display")
-bool showBearishDiv = input.bool(true, "Show Bearish Divergence (Tops)", group="Display")
-bool showLabels = input.bool(true, "Show Divergence Labels", group="Display")
-bool showDivLines = input.bool(true, "Show Divergence Lines", group="Display")
+showBullishDiv = input.bool(true, "Show Bullish Divergence (Bottoms)", group="Display")
+showBearishDiv = input.bool(true, "Show Bearish Divergence (Tops)", group="Display")
+showLabels = input.bool(true, "Show Divergence Labels", group="Display")
+showDivLines = input.bool(true, "Show Divergence Lines", group="Display")
 
 // Visual Settings
-color bullishDivColor = input.color(color.new(#00FF00, 0), "Bullish Divergence Color", group="Visual")
-color bearishDivColor = input.color(color.new(#FF0000, 0), "Bearish Divergence Color", group="Visual")
-color rsiColor = input.color(color.new(#2196F3, 0), "RSI Line Color", group="Visual")
+bullishDivColor = input.color(color.new(#00FF00, 0), "Bullish Divergence Color", group="Visual")
+bearishDivColor = input.color(color.new(#FF0000, 0), "Bearish Divergence Color", group="Visual")
+rsiColor = input.color(color.new(#2196F3, 0), "RSI Line Color", group="Visual")
 
 // ==================================================================================
 // RSI CALCULATION
 // ==================================================================================
 
-rsi = ta.rsi(rsiSrc, rsiLength)
+rsi = ta.rsi(src, rsiLength)
 
 // ==================================================================================
 // PIVOT DETECTION
