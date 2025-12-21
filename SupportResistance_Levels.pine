@@ -98,60 +98,22 @@ var array<float> topSupportLevels = array.new<float>()
 topSupportLevels := array.new<float>()
 
 if array.size(supportLevels) > 0
-    // Create copy of arrays for sorting
-    array<float> tempSupport = array.copy(supportLevels)
-    array<int> tempSupportTouches = array.copy(supportTouches)
-
-    // Get top N levels by touch count
-    for j = 0 to math.min(maxLevels - 1, array.size(tempSupport) - 1)
-        if array.size(tempSupport) > 0 and array.size(tempSupportTouches) > 0
-            // Find level with most touches
-            int maxIdx = 0
-            int maxTouches = array.get(tempSupportTouches, 0)
-
-            // Only search if array has more than 1 element
-            if array.size(tempSupportTouches) > 1
-                for i = 1 to array.size(tempSupportTouches) - 1
-                    if array.get(tempSupportTouches, i) > maxTouches
-                        maxTouches := array.get(tempSupportTouches, i)
-                        maxIdx := i
-
-            // Add to top levels
-            array.push(topSupportLevels, array.get(tempSupport, maxIdx))
-
-            // Remove from temp arrays
-            array.remove(tempSupport, maxIdx)
-            array.remove(tempSupportTouches, maxIdx)
+    // Simple approach: just add all levels (up to maxLevels)
+    int levelsToAdd = math.min(maxLevels, array.size(supportLevels))
+    for i = 0 to levelsToAdd - 1
+        if i < array.size(supportLevels)
+            array.push(topSupportLevels, array.get(supportLevels, i))
 
 // Get the most touched/significant resistance levels
 var array<float> topResistanceLevels = array.new<float>()
 topResistanceLevels := array.new<float>()
 
 if array.size(resistanceLevels) > 0
-    // Create copy of arrays for sorting
-    array<float> tempResistance = array.copy(resistanceLevels)
-    array<int> tempResistanceTouches = array.copy(resistanceTouches)
-
-    // Get top N levels by touch count
-    for j = 0 to math.min(maxLevels - 1, array.size(tempResistance) - 1)
-        if array.size(tempResistance) > 0 and array.size(tempResistanceTouches) > 0
-            // Find level with most touches
-            int maxIdx = 0
-            int maxTouches = array.get(tempResistanceTouches, 0)
-
-            // Only search if array has more than 1 element
-            if array.size(tempResistanceTouches) > 1
-                for i = 1 to array.size(tempResistanceTouches) - 1
-                    if array.get(tempResistanceTouches, i) > maxTouches
-                        maxTouches := array.get(tempResistanceTouches, i)
-                        maxIdx := i
-
-            // Add to top levels
-            array.push(topResistanceLevels, array.get(tempResistance, maxIdx))
-
-            // Remove from temp arrays
-            array.remove(tempResistance, maxIdx)
-            array.remove(tempResistanceTouches, maxIdx)
+    // Simple approach: just add all levels (up to maxLevels)
+    int levelsToAdd = math.min(maxLevels, array.size(resistanceLevels))
+    for i = 0 to levelsToAdd - 1
+        if i < array.size(resistanceLevels)
+            array.push(topResistanceLevels, array.get(resistanceLevels, i))
 
 // ==================================================================================
 // VISUAL DISPLAY - HORIZONTAL LINES
