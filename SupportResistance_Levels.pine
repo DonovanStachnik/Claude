@@ -154,7 +154,7 @@ if array.size(resistanceLevels) > 0
 // ==================================================================================
 
 // Draw support levels (green lines)
-if barstate.islast
+if barstate.islast and array.size(topSupportLevels) > 0
     for i = 0 to array.size(topSupportLevels) - 1
         float level = array.get(topSupportLevels, i)
 
@@ -175,7 +175,7 @@ if barstate.islast
                          size=size.small)
 
 // Draw resistance levels (red lines)
-if barstate.islast
+if barstate.islast and array.size(topResistanceLevels) > 0
     for i = 0 to array.size(topResistanceLevels) - 1
         float level = array.get(topResistanceLevels, i)
 
