@@ -109,10 +109,12 @@ if array.size(supportLevels) > 0
             int maxIdx = 0
             int maxTouches = array.get(tempSupportTouches, 0)
 
-            for i = 1 to array.size(tempSupportTouches) - 1
-                if array.get(tempSupportTouches, i) > maxTouches
-                    maxTouches := array.get(tempSupportTouches, i)
-                    maxIdx := i
+            // Only search if array has more than 1 element
+            if array.size(tempSupportTouches) > 1
+                for i = 1 to array.size(tempSupportTouches) - 1
+                    if array.get(tempSupportTouches, i) > maxTouches
+                        maxTouches := array.get(tempSupportTouches, i)
+                        maxIdx := i
 
             // Add to top levels
             array.push(topSupportLevels, array.get(tempSupport, maxIdx))
@@ -137,10 +139,12 @@ if array.size(resistanceLevels) > 0
             int maxIdx = 0
             int maxTouches = array.get(tempResistanceTouches, 0)
 
-            for i = 1 to array.size(tempResistanceTouches) - 1
-                if array.get(tempResistanceTouches, i) > maxTouches
-                    maxTouches := array.get(tempResistanceTouches, i)
-                    maxIdx := i
+            // Only search if array has more than 1 element
+            if array.size(tempResistanceTouches) > 1
+                for i = 1 to array.size(tempResistanceTouches) - 1
+                    if array.get(tempResistanceTouches, i) > maxTouches
+                        maxTouches := array.get(tempResistanceTouches, i)
+                        maxIdx := i
 
             // Add to top levels
             array.push(topResistanceLevels, array.get(tempResistance, maxIdx))
