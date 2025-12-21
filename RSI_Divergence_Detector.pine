@@ -126,26 +126,20 @@ if array.size(pivotLowPrices) >= 2 and showBullishDiv
 
         // Check if within lookback range
         if (currentBar - previousBar) <= maxLookbackRange
-            // Calculate price change percentage
             float priceChangePercent = math.abs((currentPrice - previousPrice) / previousPrice * 100)
 
-            // BULLISH DIVERGENCE: Price lower low, RSI higher low
-            // Quality filters: RSI must be oversold, strong divergence, significant price move
-            bool priceLowerLow = currentPrice < previousPrice
-            bool rsiHigherLow = currentRSI > previousRSI
-            bool strongDivergence = (currentRSI - previousRSI) >= minDivergenceStrength
-            bool rsiOversold = currentRSI < rsiOversoldThreshold
-            bool significantMove = priceChangePercent >= minPriceChange
-
-            if priceLowerLow and rsiHigherLow and strongDivergence and rsiOversold and significantMove
-                bullishDivergence := true
-                bullishDivBar1 := previousBar
-                bullishDivBar2 := currentBar
-                bullishDivPrice1 := previousPrice
-                bullishDivPrice2 := currentPrice
-                bullishDivRSI1 := previousRSI
-                bullishDivRSI2 := currentRSI
-                break
+            // BULLISH DIVERGENCE: Price lower low, RSI higher low + Quality filters
+            if currentPrice < previousPrice and currentRSI > previousRSI
+                if (currentRSI - previousRSI) >= minDivergenceStrength
+                    if currentRSI < rsiOversoldThreshold and priceChangePercent >= minPriceChange
+                        bullishDivergence := true
+                        bullishDivBar1 := previousBar
+                        bullishDivBar2 := currentBar
+                        bullishDivPrice1 := previousPrice
+                        bullishDivPrice2 := currentPrice
+                        bullishDivRSI1 := previousRSI
+                        bullishDivRSI2 := currentRSI
+                        break
 
 // Detect BEARISH DIVERGENCE (Price makes higher high, RSI makes lower high)
 var bool bearishDivergence = false
@@ -172,26 +166,20 @@ if array.size(pivotHighPrices) >= 2 and showBearishDiv
 
         // Check if within lookback range
         if (currentBar - previousBar) <= maxLookbackRange
-            // Calculate price change percentage
             float priceChangePercent = math.abs((currentPrice - previousPrice) / previousPrice * 100)
 
-            // BEARISH DIVERGENCE: Price higher high, RSI lower high
-            // Quality filters: RSI must be overbought, strong divergence, significant price move
-            bool priceHigherHigh = currentPrice > previousPrice
-            bool rsiLowerHigh = currentRSI < previousRSI
-            bool strongDivergence = (previousRSI - currentRSI) >= minDivergenceStrength
-            bool rsiOverbought = currentRSI > rsiOverboughtThreshold
-            bool significantMove = priceChangePercent >= minPriceChange
-
-            if priceHigherHigh and rsiLowerHigh and strongDivergence and rsiOverbought and significantMove
-                bearishDivergence := true
-                bearishDivBar1 := previousBar
-                bearishDivBar2 := currentBar
-                bearishDivPrice1 := previousPrice
-                bearishDivPrice2 := currentPrice
-                bearishDivRSI1 := previousRSI
-                bearishDivRSI2 := currentRSI
-                break
+            // BEARISH DIVERGENCE: Price higher high, RSI lower high + Quality filters
+            if currentPrice > previousPrice and currentRSI < previousRSI
+                if (previousRSI - currentRSI) >= minDivergenceStrength
+                    if currentRSI > rsiOverboughtThreshold and priceChangePercent >= minPriceChange
+                        bearishDivergence := true
+                        bearishDivBar1 := previousBar
+                        bearishDivBar2 := currentBar
+                        bearishDivPrice1 := previousPrice
+                        bearishDivPrice2 := currentPrice
+                        bearishDivRSI1 := previousRSI
+                        bearishDivRSI2 := currentRSI
+                        break
 
 // ==================================================================================
 // VISUAL DISPLAY
