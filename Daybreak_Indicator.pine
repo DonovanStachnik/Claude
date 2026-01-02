@@ -50,13 +50,6 @@ bool showBacktestStats = input.bool(true, "Show AI Predictor Table", group="Disp
 color buyColor = input.color(color.new(#10cab8, 0), "Buy Signal Color", group="Visual")
 color sellColor = input.color(color.new(#8080ff, 0), "Sell Signal Color", group="Visual")
 
-// Support/Resistance Settings
-bool showSupportResistance = input.bool(true, "Show Support/Resistance Levels", group="Support/Resistance")
-int srPivotLength = input.int(10, "Pivot Detection Length", minval=5, maxval=50, group="Support/Resistance")
-int maxSRLevels = input.int(3, "Max S/R Levels to Show", minval=1, maxval=5, group="Support/Resistance")
-color supportColor = input.color(color.new(#00FF00, 80), "Support Zone Color", group="Support/Resistance")
-color resistanceColor = input.color(color.new(#FF0000, 80), "Resistance Zone Color", group="Support/Resistance")
-
 // ==================================================================================
 // HELPER FUNCTIONS
 // ==================================================================================
@@ -644,12 +637,12 @@ plot(ema21, "EMA 21", color=color.new(color.blue, 0), linewidth=1)
 plot(ema50, "EMA 50", color=color.new(color.orange, 0), linewidth=2)
 plot(ema200, "EMA 200", color=color.new(color.red, 0), linewidth=2)
 
-// DAYBREAK SUN SYMBOLS - Replace the X markers
-// Green Sun ☀ = Bullish momentum (appear near local LOWS/bottoms)
+// DAYBREAK SUN SYMBOLS - Bullish and bearish momentum reversals
+// Green Sun = Bullish momentum (appear near local LOWS/bottoms)
 plotshape(suiteBlueDiamond or suiteBlueDiamondEarly, "Bullish Reversal", shape.circle, location.belowbar,
          color.new(#00FF00, 0), size=size.small)
 
-// Red Sun ☀ = Bearish momentum (appear near local HIGHS/tops)
+// Red Sun = Bearish momentum (appear near local HIGHS/tops)
 plotshape(suitePinkDiamond or suitePinkDiamondEarly, "Bearish Reversal", shape.circle, location.abovebar,
          color.new(#FF0000, 0), size=size.small)
 
@@ -735,10 +728,10 @@ if showBacktestStats
 // ALERTS
 // ==================================================================================
 
-alertcondition(buySignal, "Daybreak Buy Signal", "Daybreak: Buy signal detected ☀")
-alertcondition(sellSignal, "Daybreak Sell Signal", "Daybreak: Sell signal detected ☀")
-alertcondition(suiteBlueDiamond or suiteBlueDiamondEarly, "Bullish Sun", "Daybreak: Green Sun appeared (bullish) ☀")
-alertcondition(suitePinkDiamond or suitePinkDiamondEarly, "Bearish Sun", "Daybreak: Red Sun appeared (bearish) ☀")
+alertcondition(buySignal, "Daybreak Buy Signal", "Daybreak: Buy signal detected")
+alertcondition(sellSignal, "Daybreak Sell Signal", "Daybreak: Sell signal detected")
+alertcondition(suiteBlueDiamond or suiteBlueDiamondEarly, "Bullish Sun", "Daybreak: Green Sun appeared (bullish)")
+alertcondition(suitePinkDiamond or suitePinkDiamondEarly, "Bearish Sun", "Daybreak: Red Sun appeared (bearish)")
 
 // ==================================================================================
 // NOTES
@@ -751,6 +744,6 @@ alertcondition(suitePinkDiamond or suitePinkDiamondEarly, "Bearish Sun", "Daybre
 // 5. Pattern Recognition - Support/Resistance, Higher Highs/Lows, Candlesticks
 //
 // The indicator calculates a 0-100 confidence score based on indicator alignment
-// Green Sun ☀ = Bullish reversal (Suite Diamonds)
-// Red Sun ☀ = Bearish reversal (Suite Diamonds)
+// Green Sun = Bullish reversal (near local lows)
+// Red Sun = Bearish reversal (near local highs)
 // ==================================================================================
