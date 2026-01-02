@@ -1,0 +1,131 @@
+//@version=6
+indicator("Daybreak - Bullish & Bearish Momentum Signals",
+         shorttitle="Daybreak",
+         overlay=true,
+         max_bars_back=5000)
+
+// ==================================================================================
+// DAYBREAK INDICATOR - SUITE DIAMONDS WITH SUN SYMBOLS
+// ==================================================================================
+// Detects bullish and bearish momentum reversals using Suite Diamond logic
+// Green Sun ☀ = Bullish reversal (8/21 EMA crossover)
+// Red Sun ☀ = Bearish reversal (8/21 EMA crossunder)
+// ==================================================================================
+
+// ==================================================================================
+// INPUT SETTINGS
+// ==================================================================================
+
+// Suite Diamond Settings
+int suiteFastLength = input.int(8, "Fast EMA Length", minval=1, group="Suite Diamonds")
+int suiteSlowLength = input.int(21, "Slow EMA Length", minval=1, group="Suite Diamonds")
+int suiteSignalLength = input.int(5, "Signal SMA Length", minval=1, group="Suite Diamonds")
+
+// Visual Settings
+bool showEMAs = input.bool(true, "Show EMAs", group="Visual")
+bool showSignals = input.bool(true, "Show Sun Signals", group="Visual")
+color bullishColor = input.color(color.new(#00FF00, 0), "Bullish Sun Color", group="Visual")
+color bearishColor = input.color(color.new(#FF0000, 0), "Bearish Sun Color", group="Visual")
+
+// ==================================================================================
+// HELPER FUNCTIONS
+// ==================================================================================
+
+// Optimized EMA calculation
+emaCalc(src, length) =>
+    ta.ema(src, length)
+
+// Optimized SMA calculation
+smaCalc(src, length) =>
+    ta.sma(src, length)
+
+// ==================================================================================
+// SUITE DIAMONDS INDICATOR (Custom Momentum)
+// ==================================================================================
+
+// Calculate Suite Diamond components
+suiteFastEma = emaCalc(close, suiteFastLength)
+suiteSlowEma = emaCalc(close, suiteSlowLength)
+suiteMacd = suiteFastEma - suiteSlowEma
+suiteSignal = smaCalc(suiteMacd, suiteSignalLength)
+suiteHistogram = suiteMacd - suiteSignal
+
+// Diamond Signals (Blue = Bullish, Pink = Bearish)
+suiteBlueDiamond = ta.crossover(suiteMacd, suiteSignal) and suiteMacd > 0
+suiteBlueDiamondEarly = ta.crossover(suiteMacd, suiteSignal) and suiteMacd <= 0
+suitePinkDiamond = ta.crossunder(suiteMacd, suiteSignal) and suiteMacd < 0
+suitePinkDiamondEarly = ta.crossunder(suiteMacd, suiteSignal) and suiteMacd >= 0
+
+// Combined signals
+bullishSignal = suiteBlueDiamond or suiteBlueDiamondEarly
+bearishSignal = suitePinkDiamond or suitePinkDiamondEarly
+
+// ==================================================================================
+// EMAs FOR TREND CONTEXT
+// ==================================================================================
+
+ema8 = emaCalc(close, 8)
+ema21 = emaCalc(close, 21)
+ema50 = emaCalc(close, 50)
+ema200 = emaCalc(close, 200)
+
+// ==================================================================================
+// VISUAL DISPLAY
+// ==================================================================================
+
+// Plot EMAs
+plot(showEMAs ? ema21 : na, "EMA 21", color=color.new(color.blue, 0), linewidth=1)
+plot(showEMAs ? ema50 : na, "EMA 50", color=color.new(color.orange, 0), linewidth=2)
+plot(showEMAs ? ema200 : na, "EMA 200", color=color.new(color.red, 0), linewidth=2)
+
+// SUN SYMBOLS - Circle with rays (like ☀)
+// Bullish Sun (Green) - appears below candles at local lows
+if showSignals and bullishSignal
+    // Main circle body
+    plotshape(true, "Bullish Sun Center", shape.circle, location.belowbar,
+             color.new(bullishColor, 0), size=size.small)
+
+    // Sun rays (using small diamonds around the circle to create ray effect)
+    // Top ray
+    plotshape(true, "Bullish Ray 1", shape.diamond, location.belowbar,
+             color.new(bullishColor, 0), size=size.tiny, offset=0)
+    // Bottom ray
+    plotshape(true, "Bullish Ray 2", shape.diamond, location.belowbar,
+             color.new(bullishColor, 30), size=size.tiny, offset=0)
+
+// Bearish Sun (Red) - appears above candles at local highs
+if showSignals and bearishSignal
+    // Main circle body
+    plotshape(true, "Bearish Sun Center", shape.circle, location.abovebar,
+             color.new(bearishColor, 0), size=size.small)
+
+    // Sun rays
+    plotshape(true, "Bearish Ray 1", shape.diamond, location.abovebar,
+             color.new(bearishColor, 0), size=size.tiny, offset=0)
+    plotshape(true, "Bearish Ray 2", shape.diamond, location.abovebar,
+             color.new(bearishColor, 30), size=size.tiny, offset=0)
+
+// ==================================================================================
+// ALERTS
+// ==================================================================================
+
+alertcondition(bullishSignal, "Bullish Sun Signal", "Daybreak: Bullish momentum reversal detected ☀")
+alertcondition(bearishSignal, "Bearish Sun Signal", "Daybreak: Bearish momentum reversal detected ☀")
+
+// ==================================================================================
+// NOTES
+// ==================================================================================
+// Daybreak Indicator - Suite Diamond Momentum System
+//
+// GREEN SUN ☀ = Bullish reversal signal
+//   - 8 EMA crosses above 21 EMA (fast momentum shift)
+//   - Appears near local lows/bottoms
+//   - Potential entry opportunity
+//
+// RED SUN ☀ = Bearish reversal signal
+//   - 8 EMA crosses below 21 EMA (momentum weakening)
+//   - Appears near local highs/tops
+//   - Potential exit/short opportunity
+//
+// Use with other indicators and price action for confirmation
+// ==================================================================================
