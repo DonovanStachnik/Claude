@@ -76,10 +76,10 @@ plot(suiteSignal, "Signal", color=color.new(color.gray, 30), linewidth=1, style=
 // ==================================================================================
 
 // Green Sun (Early Bullish) - appears at bottom when crossover happens
-plotchar(greenSun, "Green Sun ☀", "☀", location.bottom, greenColor, size=size.normal)
+plotchar(greenSun, "Early Green Sun", "●", location.bottom, greenColor, size=size.normal)
 
 // Red Sun (Early Bearish) - appears at top when crossunder happens
-plotchar(redSun, "Red Sun ☀", "☀", location.top, redColor, size=size.normal)
+plotchar(redSun, "Early Red Sun", "●", location.top, redColor, size=size.normal)
 
 // ==================================================================================
 // BACKGROUND COLOR - Shows current momentum state
@@ -91,8 +91,8 @@ bgcolor(suiteMacd > 0 ? color.new(greenColor, 95) : color.new(redColor, 95), tit
 // ALERTS
 // ==================================================================================
 
-alertcondition(greenSun, "Early Bullish Entry", "Daybreak Early: Green Sun ☀ - Early bullish entry signal!")
-alertcondition(redSun, "Early Bearish Entry", "Daybreak Early: Red Sun ☀ - Early bearish entry signal!")
+alertcondition(greenSun, "Early Bullish Entry", "Daybreak Early: Green Sun - Early bullish entry signal!")
+alertcondition(redSun, "Early Bearish Entry", "Daybreak Early: Red Sun - Early bearish entry signal!")
 
 // ==================================================================================
 // NOTES
@@ -107,8 +107,8 @@ alertcondition(redSun, "Early Bearish Entry", "Daybreak Early: Red Sun ☀ - Ear
 // - Early Entry: Green sun appears IMMEDIATELY on crossover (regardless of position)
 //
 // USAGE:
-// 1. Green ☀ at bottom = Early bullish entry (crossover happened)
-// 2. Red ☀ at top = Early bearish entry (crossunder happened)
+// 1. Green dot at bottom = Early bullish entry (crossover happened)
+// 2. Red dot at top = Early bearish entry (crossunder happened)
 // 3. Histogram above zero = Bullish momentum
 // 4. Histogram below zero = Bearish momentum
 // 5. Bright histogram = Momentum increasing
