@@ -61,7 +61,11 @@ redSun = ta.crossunder(suiteMacd, suiteSignal)   // Early bearish
 hline(showZeroLine ? 0 : na, "Zero Line", color=color.new(color.gray, 50), linestyle=hline.style_solid)
 
 // Plot histogram
-histColor = suiteHistogram > 0 ? (suiteHistogram > suiteHistogram[1] ? color.new(greenColor, 40) : color.new(greenColor, 70)) : (suiteHistogram < suiteHistogram[1] ? color.new(redColor, 40) : color.new(redColor, 70))
+var color histColor = na
+if suiteHistogram > 0
+    histColor := suiteHistogram > suiteHistogram[1] ? color.new(greenColor, 40) : color.new(greenColor, 70)
+else
+    histColor := suiteHistogram < suiteHistogram[1] ? color.new(redColor, 40) : color.new(redColor, 70)
 
 plot(showHistogram ? suiteHistogram : na, "Momentum", color=histColor, style=plot.style_histogram, linewidth=4)
 
