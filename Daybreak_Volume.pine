@@ -1,13 +1,13 @@
 //@version=6
-indicator("Daybreak Volume", shorttitle="Volume", overlay=false)
+indicator("Daybreak Volume Pressure", shorttitle="Volume Pressure", overlay=false)
 
 // ==================================================================================
-// DAYBREAK VOLUME INDICATOR
+// DAYBREAK VOLUME PRESSURE INDICATOR
 // ==================================================================================
-// Simple volume indicator using Daybreak color scheme
-// Green = Bullish volume (close > open)
-// Red = Bearish volume (close < open)
-// Gray = Neutral volume (close = open)
+// Analyzes buying vs selling pressure to confirm Daybreak signals
+// Green = Buying pressure (accumulation) - confirms bullish signals
+// Red = Selling pressure (distribution) - confirms bearish signals
+// Helps identify real moves vs fakeouts
 // ==================================================================================
 
 // ==================================================================================
@@ -15,68 +15,174 @@ indicator("Daybreak Volume", shorttitle="Volume", overlay=false)
 // ==================================================================================
 
 // Color Settings
-color greenColor = input.color(color.new(#00FF00, 0), "Bullish Volume Color", group="Colors")
-color redColor = input.color(color.new(#FF0000, 0), "Bearish Volume Color", group="Colors")
-color neutralColor = input.color(color.new(#808080, 50), "Neutral Volume Color", group="Colors")
+color greenColor = input.color(color.new(#00FF00, 0), "Buying Pressure Color", group="Colors")
+color redColor = input.color(color.new(#FF0000, 0), "Selling Pressure Color", group="Colors")
 
-// Volume Settings
-int maLength = input.int(20, "Volume MA Length", minval=1, group="Settings")
-bool showMA = input.bool(true, "Show Volume MA", group="Settings")
+// Volume Pressure Settings
+int pressureLength = input.int(14, "Pressure Calculation Period", minval=1, group="Settings")
+bool showZeroLine = input.bool(true, "Show Zero Line", group="Display")
 
 // ==================================================================================
-// VOLUME CALCULATIONS
+// VOLUME PRESSURE CALCULATIONS
 // ==================================================================================
 
-// Determine volume color based on candle direction
-bullishVolume = close > open
-bearishVolume = close < open
-neutralVolume = close == open
+// Calculate where price closed in the candle's range (0 to 1)
+// Close near high = buying pressure, close near low = selling pressure
+rangePosition = (high - low) != 0 ? (close - low) / (high - low) : 0.5
 
-// Volume color logic
-var color volumeColor = na
-if bullishVolume
-    volumeColor := greenColor
-else if bearishVolume
-    volumeColor := redColor
-else
-    volumeColor := neutralColor
+// Buying/Selling Volume
+// If close is in upper half of range, it's buying volume
+// If close is in lower half of range, it's selling volume
+buyingVolume = rangePosition > 0.5 ? volume * (rangePosition - 0.5) * 2 : 0
+sellingVolume = rangePosition < 0.5 ? volume * (0.5 - rangePosition) * 2 : 0
 
-// Volume Moving Average
-volumeMA = ta.sma(volume, maLength)
+// Net buying pressure (positive = buying, negative = selling)
+volumePressure = buyingVolume - sellingVolume
+
+// Smooth the pressure with EMA
+smoothPressure = ta.ema(volumePressure, pressureLength)
+
+// Calculate buying/selling strength (0-100 scale)
+totalVolume = buyingVolume + sellingVolume
+buyingStrength = totalVolume > 0 ? (buyingVolume / totalVolume) * 100 : 50
+sellingStrength = totalVolume > 0 ? (sellingVolume / totalVolume) * 100 : 50
+
+// On Balance Volume (OBV) - tracks cumulative volume flow
+obvChange = close > close[1] ? volume : close < close[1] ? -volume : 0
+obv = ta.cum(obvChange)
+obvEma = ta.ema(obv, pressureLength)
+obvTrend = obv > obvEma
+
+// Accumulation/Distribution Line
+// Measures money flow into/out of the security
+adLine = close == high and close == low ? 0 : ((2 * close - low - high) / (high - low)) * volume
+cumAD = ta.cum(adLine)
+cumADEma = ta.ema(cumAD, pressureLength)
+accumulating = cumAD > cumADEma
+
+// Combined pressure signal
+strongBuying = volumePressure > 0 and obvTrend and accumulating
+strongSelling = volumePressure < 0 and not obvTrend and not accumulating
 
 // ==================================================================================
 // VISUAL DISPLAY
 // ==================================================================================
 
-// Plot volume bars
-plot(volume, "Volume", color=volumeColor, style=plot.style_histogram, linewidth=2)
+// Plot zero line
+hline(showZeroLine ? 0 : na, "Zero Line", color=color.new(color.white, 70), linestyle=hline.style_solid)
 
-// Plot volume moving average
-plot(showMA ? volumeMA : na, "Volume MA", color=color.new(color.white, 30), linewidth=2, style=plot.style_line)
+// Plot volume pressure as histogram
+pressureColor = volumePressure > 0 ?
+    (volumePressure > volumePressure[1] ? color.new(greenColor, 30) : color.new(greenColor, 60)) :
+    (volumePressure < volumePressure[1] ? color.new(redColor, 30) : color.new(redColor, 60))
+
+plot(volumePressure, "Volume Pressure", color=pressureColor, style=plot.style_histogram, linewidth=4)
+
+// Plot smoothed pressure line
+plot(smoothPressure, "Smooth Pressure", color=smoothPressure > 0 ? greenColor : redColor, linewidth=2)
+
+// Background color for strong signals
+bgcolor(strongBuying ? color.new(greenColor, 90) : strongSelling ? color.new(redColor, 90) : na, title="Strong Pressure BG")
+
+// ==================================================================================
+// PRESSURE STRENGTH LABELS
+// ==================================================================================
+
+// Show buying/selling strength at bottom
+var table strengthTable = table.new(position.bottom_right, 2, 3, border_width=1)
+
+if barstate.islast
+    // Header
+    table.cell(strengthTable, 0, 0, "Pressure Type", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.tiny)
+    table.cell(strengthTable, 1, 0, "Strength", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.tiny)
+
+    // Buying pressure
+    table.cell(strengthTable, 0, 1, "Buying", text_color=color.white, text_size=size.tiny)
+    buyColor = buyingStrength > 65 ? color.new(greenColor, 50) : color.new(color.gray, 70)
+    table.cell(strengthTable, 1, 1, str.tostring(math.round(buyingStrength)) + "%",
+              bgcolor=buyColor, text_color=color.white, text_size=size.tiny)
+
+    // Selling pressure
+    table.cell(strengthTable, 0, 2, "Selling", text_color=color.white, text_size=size.tiny)
+    sellColor = sellingStrength > 65 ? color.new(redColor, 50) : color.new(color.gray, 70)
+    table.cell(strengthTable, 1, 2, str.tostring(math.round(sellingStrength)) + "%",
+              bgcolor=sellColor, text_color=color.white, text_size=size.tiny)
 
 // ==================================================================================
 // ALERTS
 // ==================================================================================
 
-// High volume alert (volume > 2x average)
-highVolume = volume > volumeMA * 2.0
-alertcondition(highVolume, "High Volume", "Daybreak Volume: Volume spike detected (2x average)!")
+alertcondition(strongBuying, "Strong Buying Pressure", "Daybreak Volume: Strong buying pressure detected - Real accumulation!")
+alertcondition(strongSelling, "Strong Selling Pressure", "Daybreak Volume: Strong selling pressure detected - Real distribution!")
+
+// Divergence alerts
+bullishDivergence = close < close[5] and volumePressure > volumePressure[5]
+bearishDivergence = close > close[5] and volumePressure < volumePressure[5]
+
+alertcondition(bullishDivergence, "Bullish Divergence", "Daybreak Volume: Bullish divergence - Price down but buying pressure up!")
+alertcondition(bearishDivergence, "Bearish Divergence", "Daybreak Volume: Bearish divergence - Price up but buying pressure down!")
 
 // ==================================================================================
 // NOTES
 // ==================================================================================
-// DAYBREAK VOLUME INDICATOR
+// DAYBREAK VOLUME PRESSURE INDICATOR
 //
-// Simple volume bars colored by candle direction:
-// - Green bars = Bullish volume (close > open)
-// - Red bars = Bearish volume (close < open)
-// - Gray bars = Neutral volume (close = open, rare)
+// This indicator analyzes BUYING vs SELLING PRESSURE to confirm Daybreak signals
+// and identify if moves are REAL or FAKEOUTS.
 //
-// White line = 20-period volume moving average
+// HOW IT WORKS:
+// - Calculates where price closes in the candle's range (high/low)
+// - Close near high = Buying pressure (volume weighted)
+// - Close near low = Selling pressure (volume weighted)
+// - Combines with OBV and Accumulation/Distribution for confirmation
 //
-// USAGE:
-// - Bright green volume on green candles = Strong bullish buying
-// - Bright red volume on red candles = Strong bearish selling
-// - Volume above MA = Higher than average activity
-// - Volume below MA = Lower than average activity
+// WHAT TO LOOK FOR:
+//
+// 1. CONFIRMING BULLISH SIGNALS (Real Move):
+//    - Daybreak shows green sun on main chart
+//    - This shows GREEN histogram rising
+//    - Buying strength > 65%
+//    - Green background flash = Strong buying pressure
+//    → Real bullish move, not a fakeout
+//
+// 2. FAKEOUT BULLISH SIGNAL (Weak Move):
+//    - Daybreak shows green sun on main chart
+//    - This shows RED histogram or weak green
+//    - Selling strength > 50%
+//    → Fakeout, no real buying behind the move
+//
+// 3. CONFIRMING BEARISH SIGNALS (Real Move):
+//    - Daybreak shows red sun on main chart
+//    - This shows RED histogram falling
+//    - Selling strength > 65%
+//    - Red background flash = Strong selling pressure
+//    → Real bearish move, not a fakeout
+//
+// 4. FAKEOUT BEARISH SIGNAL (Weak Move):
+//    - Daybreak shows red sun on main chart
+//    - This shows GREEN histogram or weak red
+//    - Buying strength > 50%
+//    → Fakeout, no real selling behind the move
+//
+// 5. DIVERGENCES (Advanced):
+//    - Bullish divergence: Price falling but buying pressure rising = Reversal coming
+//    - Bearish divergence: Price rising but buying pressure falling = Reversal coming
+//
+// INTERPRETATION:
+// - Green histogram above zero = Accumulation (institutional buying)
+// - Red histogram below zero = Distribution (institutional selling)
+// - Bright colors = Pressure increasing
+// - Faded colors = Pressure decreasing
+// - Smooth line = Overall trend of pressure
+//
+// USE WITH DAYBREAK SYSTEM:
+// 1. Main Chart: Daybreak (sun signals with rays)
+// 2. Pane 1: Early Entry (early warning suns)
+// 3. Pane 2: Volume Pressure (THIS - confirms real vs fake)
+//
+// PERFECT SETUP:
+// - Early Entry shows tiny sun (early warning)
+// - Main chart shows sun with rays (confirmation)
+// - Volume Pressure shows strong green/red (real institutional flow)
+// = HIGH PROBABILITY TRADE
 // ==================================================================================
