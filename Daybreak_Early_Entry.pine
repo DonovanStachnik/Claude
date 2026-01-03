@@ -1,39 +1,25 @@
 //@version=6
-indicator("Daybreak Early Entry - Multi-Timeframe Momentum",
-         shorttitle="Daybreak Early",
-         overlay=false)
+indicator("Daybreak Early Entry", shorttitle="Early Entry", overlay=false)
 
 // ==================================================================================
 // DAYBREAK EARLY ENTRY INDICATOR
 // ==================================================================================
-// This companion indicator provides early entry signals across multiple timeframes
-// Uses Suite Diamond momentum system (8/21 EMA crossover) as an oscillator
-// Sun symbols appear when momentum shifts BEFORE main chart signals
+// Companion to main Daybreak indicator
+// Shows early entry signals using Suite Diamond momentum (8/21 EMA crossover)
+// Green/Red sun symbols appear BEFORE main chart confirmations
 // ==================================================================================
 
 // ==================================================================================
 // INPUT SETTINGS
 // ==================================================================================
 
-// Timeframe Settings
-string tf1h = input.timeframe("60", "1H Timeframe", group="Timeframes")
-string tf4h = input.timeframe("240", "4H Timeframe", group="Timeframes")
-string tf1d = input.timeframe("D", "1D Timeframe", group="Timeframes")
-string tf1w = input.timeframe("W", "1W Timeframe", group="Timeframes")
-
 // Display Settings
-bool showCurrentTF = input.bool(true, "Show Current Timeframe", group="Display")
-bool show1H = input.bool(false, "Show 1H Signals", group="Display")
-bool show4H = input.bool(true, "Show 4H Signals", group="Display")
-bool showDaily = input.bool(true, "Show Daily Signals", group="Display")
-bool showWeekly = input.bool(true, "Show Weekly Signals", group="Display")
-bool showHistogram = input.bool(true, "Show Histogram", group="Display")
+bool showHistogram = input.bool(true, "Show Momentum Histogram", group="Display")
 bool showZeroLine = input.bool(true, "Show Zero Line", group="Display")
 
 // Color Settings
-color bullColor = input.color(color.new(#00FF00, 0), "Bullish Color", group="Colors")
-color bearColor = input.color(color.new(#FF0000, 0), "Bearish Color", group="Colors")
-color neutralColor = input.color(color.new(#808080, 50), "Neutral Color", group="Colors")
+color greenColor = input.color(color.new(#00FF00, 0), "Green Sun Color", group="Colors")
+color redColor = input.color(color.new(#FF0000, 0), "Red Sun Color", group="Colors")
 
 // ==================================================================================
 // HELPER FUNCTIONS
@@ -45,227 +31,91 @@ emaCalc(src, length) =>
 smaCalc(src, length) =>
     ta.sma(src, length)
 
-// Suite Diamond MACD Calculator
-getSuiteDiamond() =>
-    suiteFastEma = emaCalc(close, 8)
-    suiteSlowEma = emaCalc(close, 21)
-    suiteMacd = suiteFastEma - suiteSlowEma
-    suiteSignal = smaCalc(suiteMacd, 5)
-    suiteHistogram = suiteMacd - suiteSignal
-
-    // Early signals (crossover/under regardless of position)
-    earlyBullish = ta.crossover(suiteMacd, suiteSignal)
-    earlyBearish = ta.crossunder(suiteMacd, suiteSignal)
-
-    // Strong signals (crossover above zero / crossunder below zero)
-    strongBullish = earlyBullish and suiteMacd > 0
-    strongBearish = earlyBearish and suiteMacd < 0
-
-    [suiteMacd, suiteSignal, suiteHistogram, earlyBullish, earlyBearish, strongBullish, strongBearish]
-
 // ==================================================================================
-// CURRENT TIMEFRAME CALCULATIONS
+// SUITE DIAMOND MOMENTUM CALCULATION
 // ==================================================================================
 
-[macd, signal, histogram, earlyBull, earlyBear, strongBull, strongBear] = getSuiteDiamond()
-
-// Momentum direction
-bullishMomentum = macd > signal
-bearishMomentum = macd < signal
-increasingMomentum = histogram > histogram[1]
-decreasingMomentum = histogram < histogram[1]
-
-// ==================================================================================
-// MULTI-TIMEFRAME CALCULATIONS
-// ==================================================================================
-
-// 1H Timeframe
-[macd1h, signal1h, hist1h, earlyBull1h, earlyBear1h, strongBull1h, strongBear1h] =
-    request.security(syminfo.tickerid, tf1h, getSuiteDiamond(), lookahead=barmerge.lookahead_off)
-
-// 4H Timeframe
-[macd4h, signal4h, hist4h, earlyBull4h, earlyBear4h, strongBull4h, strongBear4h] =
-    request.security(syminfo.tickerid, tf4h, getSuiteDiamond(), lookahead=barmerge.lookahead_off)
-
-// Daily Timeframe
-[macdDaily, signalDaily, histDaily, earlyBullDaily, earlyBearDaily, strongBullDaily, strongBearDaily] =
-    request.security(syminfo.tickerid, tf1d, getSuiteDiamond(), lookahead=barmerge.lookahead_off)
-
-// Weekly Timeframe
-[macdWeekly, signalWeekly, histWeekly, earlyBullWeekly, earlyBearWeekly, strongBullWeekly, strongBearWeekly] =
-    request.security(syminfo.tickerid, tf1w, getSuiteDiamond(), lookahead=barmerge.lookahead_off)
+// Same calculation as main Daybreak indicator
+suiteFastEma = emaCalc(close, 8)
+suiteSlowEma = emaCalc(close, 21)
+suiteMacd = suiteFastEma - suiteSlowEma
+suiteSignal = smaCalc(suiteMacd, 5)
+suiteHistogram = suiteMacd - suiteSignal
 
 // ==================================================================================
-// EARLY ENTRY DETECTION
+// EARLY ENTRY SIGNALS
 // ==================================================================================
 
-// Current timeframe early signals
-earlyEntryBullish = earlyBull and macd <= 0  // Bullish cross below zero = VERY early
-earlyEntryBearish = earlyBear and macd >= 0  // Bearish cross above zero = VERY early
+// These fire on crossover/crossunder - EARLIER than main indicator
+// Main indicator waits for confirmation above/below zero
+// This one fires immediately on the cross
 
-// Confirmed signals
-confirmedBullish = strongBull  // Bullish cross above zero = confirmed
-confirmedBearish = strongBear  // Bearish cross below zero = confirmed
-
-// Multi-timeframe alignment for high probability setups
-mtfBullishAlignment = (macd > signal) and (macd4h > signal4h) and (macdDaily > signalDaily)
-mtfBearishAlignment = (macd < signal) and (macd4h < signal4h) and (macdDaily < signalDaily)
+greenSun = ta.crossover(suiteMacd, suiteSignal)  // Early bullish
+redSun = ta.crossunder(suiteMacd, suiteSignal)   // Early bearish
 
 // ==================================================================================
 // VISUAL DISPLAY
 // ==================================================================================
 
-// Plot MACD and Signal Lines
-plot(showCurrentTF ? macd : na, "Suite MACD", color=macd > signal ? bullColor : bearColor, linewidth=2)
-plot(showCurrentTF ? signal : na, "Signal Line", color=neutralColor, linewidth=1)
+// Plot zero line
+hline(showZeroLine ? 0 : na, "Zero Line", color=color.new(color.gray, 50), linestyle=hline.style_solid)
 
-// Plot Histogram
-histColor = histogram > 0 ? (histogram > histogram[1] ? color.new(bullColor, 30) : color.new(bullColor, 60)) :
-                            (histogram < histogram[1] ? color.new(bearColor, 30) : color.new(bearColor, 60))
-plot(showHistogram ? histogram : na, "Histogram", color=histColor, style=plot.style_histogram, linewidth=3)
+// Plot histogram
+histColor = suiteHistogram > 0 ?
+    (suiteHistogram > suiteHistogram[1] ? color.new(greenColor, 40) : color.new(greenColor, 70)) :
+    (suiteHistogram < suiteHistogram[1] ? color.new(redColor, 40) : color.new(redColor, 70))
 
-// Zero line
-hline(showZeroLine ? 0 : na, "Zero Line", color=color.new(color.white, 70), linestyle=hline.style_solid, linewidth=1)
+plot(showHistogram ? suiteHistogram : na, "Momentum", color=histColor, style=plot.style_histogram, linewidth=4)
 
-// ==================================================================================
-// SUN SYMBOLS FOR EARLY SIGNALS
-// ==================================================================================
-
-// Current Timeframe Suns
-plotchar(showCurrentTF and earlyEntryBullish, "Early Bullish ☀", "☀", location.bottom,
-         color.new(#00FF00, 0), size=size.small, text="EARLY")
-plotchar(showCurrentTF and confirmedBullish, "Confirmed Bullish ☀", "☀", location.bottom,
-         color.new(#00FF00, 0), size=size.normal, text="STRONG")
-
-plotchar(showCurrentTF and earlyEntryBearish, "Early Bearish ☀", "☀", location.top,
-         color.new(#FF0000, 0), size=size.small, text="EARLY")
-plotchar(showCurrentTF and confirmedBearish, "Confirmed Bearish ☀", "☀", location.top,
-         color.new(#FF0000, 0), size=size.normal, text="STRONG")
+// Plot MACD and Signal lines
+plot(suiteMacd, "MACD", color=suiteMacd > suiteSignal ? greenColor : redColor, linewidth=2)
+plot(suiteSignal, "Signal", color=color.new(color.gray, 30), linewidth=1, style=plot.style_line)
 
 // ==================================================================================
-// MULTI-TIMEFRAME SIGNAL MARKERS
+// SUN SYMBOLS - Early Entry Signals
 // ==================================================================================
 
-// Plot multi-timeframe signals as background highlights
-bgcolor(show1H and (earlyBull1h or strongBull1h) ? color.new(#00FF00, 95) : na, title="1H Bullish BG")
-bgcolor(show1H and (earlyBear1h or strongBear1h) ? color.new(#FF0000, 95) : na, title="1H Bearish BG")
+// Green Sun (Early Bullish) - appears at bottom when crossover happens
+plotchar(greenSun, "Green Sun ☀", "☀", location.bottom, greenColor, size=size.normal)
 
-bgcolor(show4H and (earlyBull4h or strongBull4h) ? color.new(#00FF00, 90) : na, title="4H Bullish BG")
-bgcolor(show4H and (earlyBear4h or strongBear4h) ? color.new(#FF0000, 90) : na, title="4H Bearish BG")
-
-bgcolor(showDaily and (earlyBullDaily or strongBullDaily) ? color.new(#00FF00, 85) : na, title="Daily Bullish BG")
-bgcolor(showDaily and (earlyBearDaily or strongBearDaily) ? color.new(#FF0000, 85) : na, title="Daily Bearish BG")
-
-bgcolor(showWeekly and (earlyBullWeekly or strongBullWeekly) ? color.new(#00FF00, 80) : na, title="Weekly Bullish BG")
-bgcolor(showWeekly and (earlyBearWeekly or strongBearWeekly) ? color.new(#FF0000, 80) : na, title="Weekly Bearish BG")
+// Red Sun (Early Bearish) - appears at top when crossunder happens
+plotchar(redSun, "Red Sun ☀", "☀", location.top, redColor, size=size.normal)
 
 // ==================================================================================
-// TIMEFRAME ALIGNMENT INDICATOR
+// BACKGROUND COLOR - Shows current momentum state
 // ==================================================================================
 
-// Plot alignment strength as a line
-alignmentStrength = 0
-alignmentStrength := alignmentStrength + (macd > signal ? 1 : -1)
-alignmentStrength := alignmentStrength + (macd4h > signal4h ? 1 : -1)
-alignmentStrength := alignmentStrength + (macdDaily > signalDaily ? 1 : -1)
-alignmentStrength := alignmentStrength + (macdWeekly > signalWeekly ? 1 : -1)
-
-// Normalize to -100 to +100
-alignmentScore = (alignmentStrength / 4) * 100
-
-// ==================================================================================
-// INFO TABLE
-// ==================================================================================
-
-var table infoTable = table.new(position.top_right, 3, 6, border_width=1)
-
-if barstate.islast
-    // Header
-    table.cell(infoTable, 0, 0, "Timeframe", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.tiny)
-    table.cell(infoTable, 1, 0, "Signal", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.tiny)
-    table.cell(infoTable, 2, 0, "Type", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.tiny)
-
-    // Current TF
-    table.cell(infoTable, 0, 1, timeframe.period, text_color=color.white, text_size=size.tiny)
-    string currentSignal = earlyEntryBullish ? "☀ EARLY BULL" : confirmedBullish ? "☀ STRONG BULL" :
-                          earlyEntryBearish ? "☀ EARLY BEAR" : confirmedBearish ? "☀ STRONG BEAR" :
-                          macd > signal ? "BULLISH" : "BEARISH"
-    color currentColor = (earlyEntryBullish or confirmedBullish) ? color.new(#00FF00, 60) :
-                        (earlyEntryBearish or confirmedBearish) ? color.new(#FF0000, 60) : color.new(color.gray, 70)
-    table.cell(infoTable, 1, 1, currentSignal, bgcolor=currentColor, text_color=color.white, text_size=size.tiny)
-    table.cell(infoTable, 2, 1, str.tostring(math.round(macd, 2)), text_color=color.white, text_size=size.tiny)
-
-    // 4H
-    table.cell(infoTable, 0, 2, "4H", text_color=color.white, text_size=size.tiny)
-    string signal4hText = (earlyBull4h or strongBull4h) ? "☀ BULL" : (earlyBear4h or strongBear4h) ? "☀ BEAR" :
-                         macd4h > signal4h ? "BULLISH" : "BEARISH"
-    color color4h = (earlyBull4h or strongBull4h) ? color.new(#00FF00, 60) :
-                   (earlyBear4h or strongBear4h) ? color.new(#FF0000, 60) : color.new(color.gray, 70)
-    table.cell(infoTable, 1, 2, signal4hText, bgcolor=color4h, text_color=color.white, text_size=size.tiny)
-    table.cell(infoTable, 2, 2, str.tostring(math.round(macd4h, 2)), text_color=color.white, text_size=size.tiny)
-
-    // Daily
-    table.cell(infoTable, 0, 3, "Daily", text_color=color.white, text_size=size.tiny)
-    string signalDailyText = (earlyBullDaily or strongBullDaily) ? "☀ BULL" : (earlyBearDaily or strongBearDaily) ? "☀ BEAR" :
-                            macdDaily > signalDaily ? "BULLISH" : "BEARISH"
-    color colorDaily = (earlyBullDaily or strongBullDaily) ? color.new(#00FF00, 60) :
-                      (earlyBearDaily or strongBearDaily) ? color.new(#FF0000, 60) : color.new(color.gray, 70)
-    table.cell(infoTable, 1, 3, signalDailyText, bgcolor=colorDaily, text_color=color.white, text_size=size.tiny)
-    table.cell(infoTable, 2, 3, str.tostring(math.round(macdDaily, 2)), text_color=color.white, text_size=size.tiny)
-
-    // Weekly
-    table.cell(infoTable, 0, 4, "Weekly", text_color=color.white, text_size=size.tiny)
-    string signalWeeklyText = (earlyBullWeekly or strongBullWeekly) ? "☀ BULL" : (earlyBearWeekly or strongBearWeekly) ? "☀ BEAR" :
-                             macdWeekly > signalWeekly ? "BULLISH" : "BEARISH"
-    color colorWeekly = (earlyBullWeekly or strongBullWeekly) ? color.new(#00FF00, 60) :
-                       (earlyBearWeekly or strongBearWeekly) ? color.new(#FF0000, 60) : color.new(color.gray, 70)
-    table.cell(infoTable, 1, 4, signalWeeklyText, bgcolor=colorWeekly, text_color=color.white, text_size=size.tiny)
-    table.cell(infoTable, 2, 4, str.tostring(math.round(macdWeekly, 2)), text_color=color.white, text_size=size.tiny)
-
-    // Alignment
-    table.cell(infoTable, 0, 5, "Alignment", text_color=color.white, text_size=size.tiny)
-    string alignText = mtfBullishAlignment ? "ALL BULL ✓" : mtfBearishAlignment ? "ALL BEAR ✓" : "MIXED"
-    color alignColor = mtfBullishAlignment ? color.new(#00FF00, 50) : mtfBearishAlignment ? color.new(#FF0000, 50) : color.new(color.gray, 70)
-    table.cell(infoTable, 1, 5, alignText, bgcolor=alignColor, text_color=color.white, text_size=size.tiny)
-    table.cell(infoTable, 2, 5, str.tostring(alignmentScore) + "%", text_color=color.white, text_size=size.tiny)
+bgcolor(suiteMacd > 0 ? color.new(greenColor, 95) : color.new(redColor, 95), title="Momentum BG")
 
 // ==================================================================================
 // ALERTS
 // ==================================================================================
 
-alertcondition(earlyEntryBullish, "Early Bullish Entry", "Daybreak Early: Early bullish signal detected!")
-alertcondition(confirmedBullish, "Confirmed Bullish Entry", "Daybreak Early: Strong bullish signal confirmed!")
-alertcondition(earlyEntryBearish, "Early Bearish Entry", "Daybreak Early: Early bearish signal detected!")
-alertcondition(confirmedBearish, "Confirmed Bearish Entry", "Daybreak Early: Strong bearish signal confirmed!")
-alertcondition(mtfBullishAlignment, "Multi-Timeframe Bullish", "Daybreak Early: ALL timeframes bullish!")
-alertcondition(mtfBearishAlignment, "Multi-Timeframe Bearish", "Daybreak Early: ALL timeframes bearish!")
+alertcondition(greenSun, "Early Bullish Entry", "Daybreak Early: Green Sun ☀ - Early bullish entry signal!")
+alertcondition(redSun, "Early Bearish Entry", "Daybreak Early: Red Sun ☀ - Early bearish entry signal!")
 
 // ==================================================================================
 // NOTES
 // ==================================================================================
-// DAYBREAK EARLY ENTRY - Multi-Timeframe Momentum Oscillator
+// DAYBREAK EARLY ENTRY INDICATOR
 //
-// This indicator shows the Suite Diamond momentum system (8/21 EMA crossover) as an oscillator
-// providing early warning signals before they appear on the main Daybreak indicator.
+// This indicator shows the SAME Suite Diamond momentum system as the main Daybreak
+// indicator, but displays it as an oscillator in a separate pane.
 //
-// SUN SYMBOLS:
-// - Small Green ☀ = Early bullish signal (crossover below zero line)
-// - Large Green ☀ = Strong bullish signal (crossover above zero line)
-// - Small Red ☀ = Early bearish signal (crossunder above zero line)
-// - Large Red ☀ = Strong bearish signal (crossunder below zero line)
-//
-// BACKGROUND COLORS:
-// - Light green tint = Bullish signal on higher timeframe
-// - Light red tint = Bearish signal on higher timeframe
-// - Darker tint = Higher timeframe (Weekly darkest, 1H lightest)
-//
-// HISTOGRAM:
-// - Bright color = Momentum increasing
-// - Faded color = Momentum decreasing
+// KEY DIFFERENCE - EARLY SIGNALS:
+// - Main Daybreak: Green sun appears when crossover happens AND MACD is above zero
+// - Early Entry: Green sun appears IMMEDIATELY on crossover (regardless of position)
 //
 // USAGE:
-// 1. Watch for small sun symbols for early entries (more risk, earlier entry)
-// 2. Wait for large sun symbols for confirmed entries (less risk, later entry)
-// 3. Check the info table for multi-timeframe alignment
-// 4. Look for "ALL BULL ✓" or "ALL BEAR ✓" for highest probability setups
+// 1. Green ☀ at bottom = Early bullish entry (crossover happened)
+// 2. Red ☀ at top = Early bearish entry (crossunder happened)
+// 3. Histogram above zero = Bullish momentum
+// 4. Histogram below zero = Bearish momentum
+// 5. Bright histogram = Momentum increasing
+// 6. Faded histogram = Momentum decreasing
+//
+// STRATEGY:
+// - Aggressive: Enter on sun symbols here (earlier, more risk)
+// - Conservative: Wait for sun symbols on main Daybreak chart (later, less risk)
+// - Confirmation: Use both - early warning here, confirmation on main chart
 // ==================================================================================
