@@ -1,13 +1,14 @@
 //@version=6
-indicator("Daybreak Volume Buildup", shorttitle="Volume Buildup", overlay=false)
+indicator("Daybreak Volume Strength", shorttitle="Volume Strength", overlay=false)
 
 // ==================================================================================
-// DAYBREAK VOLUME BUILDUP INDICATOR
+// DAYBREAK VOLUME STRENGTH INDICATOR
 // ==================================================================================
-// Tracks CUMULATIVE buying vs selling pressure over time
-// Green buildup = Sustained accumulation (stacking)
-// Red buildup = Sustained distribution (stacking)
-// Shows if institutional money is flowing IN or OUT
+// Measures buying vs selling pressure strength on a scale of 0-4
+// 1 = Weak distribution (RED)
+// 2 = Neutral (GREY)
+// 3 = Moderate accumulation (GREEN faded)
+// 4 = Strong accumulation (GREEN bright)
 // ==================================================================================
 
 // ==================================================================================
@@ -15,202 +16,178 @@ indicator("Daybreak Volume Buildup", shorttitle="Volume Buildup", overlay=false)
 // ==================================================================================
 
 // Color Settings
-color greenColor = input.color(color.new(#00FF00, 0), "Accumulation Color", group="Colors")
+color greenColor = input.color(color.new(#00FF00, 0), "Strong Buying Color", group="Colors")
+color greenFaded = input.color(color.new(#00FF00, 50), "Moderate Buying Color", group="Colors")
 color redColor = input.color(color.new(#FF0000, 0), "Distribution Color", group="Colors")
 color grayColor = input.color(color.new(#808080, 50), "Neutral Color", group="Colors")
 
-// Volume Buildup Settings
-int lookbackPeriod = input.int(50, "Buildup Lookback Period", minval=10, maxval=200, group="Settings")
-bool showZeroLine = input.bool(true, "Show Zero Line", group="Display")
+// Volume Strength Settings
+int lookbackPeriod = input.int(20, "Volume Average Period", minval=5, maxval=100, group="Settings")
+float strongThreshold = input.float(1.5, "Strong Volume Threshold", minval=1.0, maxval=3.0, step=0.1, group="Settings")
+float moderateThreshold = input.float(0.8, "Moderate Volume Threshold", minval=0.3, maxval=1.5, step=0.1, group="Settings")
 
 // ==================================================================================
-// VOLUME BUILDUP CALCULATIONS
+// VOLUME STRENGTH CALCULATIONS
 // ==================================================================================
 
 // Calculate where price closed in the candle's range (0 to 1)
 rangePosition = (high - low) != 0 ? (close - low) / (high - low) : 0.5
 
-// Buying/Selling Volume for each bar
-buyingVolume = rangePosition > 0.5 ? volume * (rangePosition - 0.5) * 2 : 0
-sellingVolume = rangePosition < 0.5 ? volume * (0.5 - rangePosition) * 2 : 0
+// Buying/Selling pressure calculation
+// Close in upper half = buying pressure, lower half = selling pressure
+buyingPressure = rangePosition > 0.5 ? (rangePosition - 0.5) * 2 : 0
+sellingPressure = rangePosition < 0.5 ? (0.5 - rangePosition) * 2 : 0
 
-// Net pressure for this bar
-netPressure = buyingVolume - sellingVolume
+// Net pressure (-1 to +1)
+netPressure = buyingPressure - sellingPressure
 
-// CUMULATIVE BUILDUP - This is the key
-// Positive = buying pressure building up (accumulation)
-// Negative = selling pressure building up (distribution)
-cumulativePressure = ta.cum(netPressure)
+// Volume relative to average
+avgVolume = ta.sma(volume, lookbackPeriod)
+volumeRatio = avgVolume > 0 ? volume / avgVolume : 1
 
-// Normalize the buildup to make it easier to read
-// Calculate average over lookback period
-avgPressure = ta.sma(math.abs(netPressure), lookbackPeriod)
+// Combined strength = pressure direction * volume strength
+volumeStrength = netPressure * volumeRatio
 
-// Scaled cumulative pressure (makes chart more readable)
-scaledPressure = avgPressure > 0 ? cumulativePressure / (avgPressure * 10) : cumulativePressure
+// ==================================================================================
+// STRENGTH LEVEL ASSIGNMENT (0-4)
+// ==================================================================================
 
-// Determine phase based on which side of zero we're on
-accumulating = scaledPressure > 0
-distributing = scaledPressure < 0
+float strengthLevel = 2  // Default to neutral
 
-// Track how long we've been in current phase (above or below zero)
-var int accumulationStreak = 0
-var int distributionStreak = 0
-
-if accumulating
-    accumulationStreak := accumulationStreak + 1
-    distributionStreak := 0
-else if distributing
-    distributionStreak := distributionStreak + 1
-    accumulationStreak := 0
+// Determine strength level based on volume strength
+if volumeStrength >= strongThreshold
+    // Level 4: Strong buying pressure with high volume
+    strengthLevel := 4
+else if volumeStrength >= moderateThreshold
+    // Level 3: Moderate buying pressure
+    strengthLevel := 3
+else if volumeStrength <= -moderateThreshold
+    // Level 1: Selling pressure (distribution)
+    strengthLevel := 1
 else
-    accumulationStreak := 0
-    distributionStreak := 0
+    // Level 2: Neutral / mixed / low conviction
+    strengthLevel := 2
 
-// Detect momentum and acceleration (for early run detection)
-building = scaledPressure > scaledPressure[1]
-weakening = scaledPressure < scaledPressure[1]
-pressureChange = scaledPressure - scaledPressure[1]
-pressureAccel = pressureChange - (scaledPressure[1] - scaledPressure[2])
+// Track sustained strength (bars at same level)
+var int level4Streak = 0
+var int level3Streak = 0
+var int level1Streak = 0
 
-// Track if we're in a sustained run (stays true until reversal)
-var bool inBullRun = false
-var bool inBearRun = false
+if strengthLevel == 4
+    level4Streak := level4Streak + 1
+    level3Streak := 0
+    level1Streak := 0
+else if strengthLevel == 3
+    level3Streak := level3Streak + 1
+    level4Streak := 0
+    level1Streak := 0
+else if strengthLevel == 1
+    level1Streak := level1Streak + 1
+    level4Streak := 0
+    level3Streak := 0
+else
+    level4Streak := 0
+    level3Streak := 0
+    level1Streak := 0
 
-// Enter bull run when crossing into positive territory with momentum
-if accumulating and building and not inBullRun
-    inBullRun := true
-    inBearRun := false
-
-// Exit bull run ONLY when crossing back to negative (actual reversal)
-if distributing
-    inBullRun := false
-
-// Enter bear run when crossing into negative territory with momentum
-if distributing and weakening and not inBearRun
-    inBearRun := true
-    inBullRun := false
-
-// Exit bear run ONLY when crossing back to positive (actual reversal)
-if accumulating
-    inBearRun := false
-
-// Strong buildup signals (sustained in phase)
-strongAccumulation = accumulationStreak >= 3 or inBullRun
-strongDistribution = distributionStreak >= 3 or inBearRun
+// Detect sustained runs (3+ bars at strong levels)
+sustainedBuying = level4Streak >= 3
+sustainedSelling = level1Streak >= 3
 
 // ==================================================================================
 // VISUAL DISPLAY
 // ==================================================================================
 
-// Plot zero line
-hline(showZeroLine ? 0 : na, "Zero Line", color=color.new(color.white, 70), linestyle=hline.style_solid)
+// Determine bar color based on strength level
+var color barColor = na
 
-// Determine bar color based on sustained run detection
-// Key: Maintain bright color throughout entire run, only change on reversal
-var color volumeColor = na
-
-// If in a sustained bull run - keep bright green throughout
-if inBullRun
-    volumeColor := greenColor
-// If in a sustained bear run - keep bright red throughout
-else if inBearRun
-    volumeColor := redColor
-// If positive but not yet in run - faded green
-else if accumulating
-    volumeColor := color.new(greenColor, 70)
-// If negative but not yet in run - faded red
-else if distributing
-    volumeColor := color.new(redColor, 70)
-// Neutral
+if strengthLevel == 4
+    // Strong buying - bright green
+    barColor := greenColor
+else if strengthLevel == 3
+    // Moderate buying - faded green
+    barColor := greenFaded
+else if strengthLevel == 2
+    // Neutral - grey
+    barColor := grayColor
+else if strengthLevel == 1
+    // Distribution - red
+    barColor := redColor
 else
-    volumeColor := grayColor
+    barColor := grayColor
 
-// Plot cumulative buildup as histogram (stacking effect)
-plot(scaledPressure, "Volume Buildup", color=volumeColor, style=plot.style_histogram, linewidth=3)
+// Plot strength level as histogram (0-4 scale)
+plot(strengthLevel, "Volume Strength", color=barColor, style=plot.style_histogram, linewidth=4)
 
-// Background color for strong sustained pressure
-bgcolor(strongAccumulation ? color.new(greenColor, 92) : strongDistribution ? color.new(redColor, 92) : na, title="Strong Buildup BG")
+// Reference lines
+hline(2, "Neutral Line", color=color.new(color.white, 80), linestyle=hline.style_dashed)
+hline(4, "Max Strength", color=color.new(greenColor, 80), linestyle=hline.style_dotted)
+hline(1, "Distribution", color=color.new(redColor, 80), linestyle=hline.style_dotted)
+
+// Background highlights for sustained runs
+bgcolor(sustainedBuying ? color.new(greenColor, 93) : sustainedSelling ? color.new(redColor, 93) : na, title="Sustained Run BG")
 
 // ==================================================================================
 // ALERTS
 // ==================================================================================
 
-// Run start alerts (most important)
-bullRunStart = inBullRun and not inBullRun[1]
-bearRunStart = inBearRun and not inBearRun[1]
+// Strength change alerts
+level4Start = strengthLevel == 4 and strengthLevel[1] != 4
+level1Start = strengthLevel == 1 and strengthLevel[1] != 1
 
-alertcondition(bullRunStart, "Bull Run Started", "Daybreak Volume: BULL RUN STARTED - Sustained buying pressure building!")
-alertcondition(bearRunStart, "Bear Run Started", "Daybreak Volume: BEAR RUN STARTED - Sustained selling pressure building!")
+alertcondition(level4Start, "Strong Buying Started", "Daybreak Volume: STRONG BUYING PRESSURE - Level 4!")
+alertcondition(level1Start, "Distribution Started", "Daybreak Volume: DISTRIBUTION PRESSURE - Level 1!")
 
-// Strong phase alerts
-alertcondition(strongAccumulation, "Strong Accumulation", "Daybreak Volume: Strong accumulation - Institutional buying!")
-alertcondition(strongDistribution, "Strong Distribution", "Daybreak Volume: Strong distribution - Institutional selling!")
+// Sustained run alerts
+sustainedBuyingStart = sustainedBuying and not sustainedBuying[1]
+sustainedSellingStart = sustainedSelling and not sustainedSelling[1]
 
-// Phase change alerts
-buildupReversal = scaledPressure[1] < 0 and scaledPressure > 0
-breakdownReversal = scaledPressure[1] > 0 and scaledPressure < 0
-
-alertcondition(buildupReversal, "Crossed to Positive", "Daybreak Volume: Crossed into positive territory - Accumulation starting!")
-alertcondition(breakdownReversal, "Crossed to Negative", "Daybreak Volume: Crossed into negative territory - Distribution starting!")
+alertcondition(sustainedBuyingStart, "Sustained Buying Run", "Daybreak Volume: SUSTAINED BUYING - 3+ bars of strong accumulation!")
+alertcondition(sustainedSellingStart, "Sustained Selling Run", "Daybreak Volume: SUSTAINED SELLING - 3+ bars of distribution!")
 
 // ==================================================================================
 // NOTES
 // ==================================================================================
-// DAYBREAK VOLUME BUILDUP INDICATOR
+// DAYBREAK VOLUME STRENGTH INDICATOR
 //
-// This indicator tracks CUMULATIVE buying/selling pressure to identify
-// SUSTAINED RUNS where institutional money is flowing in or out.
+// Measures current volume pressure strength on a fixed 0-4 scale.
+// NOT cumulative - shows CURRENT strength only.
 //
-// HOW IT WORKS:
-// - Each bar adds buying or selling pressure to the cumulative total
-// - Close near high = Buying pressure (adds to green buildup)
-// - Close near low = Selling pressure (adds to red buildup)
-// - Cumulative pressure above zero = Accumulation phase
-// - Cumulative pressure below zero = Distribution phase
+// STRENGTH LEVELS:
 //
-// RUN DETECTION (KEY FEATURE):
-// The indicator identifies when a SUSTAINED RUN starts:
-// - BULL RUN: Crosses into positive territory with building momentum
-//   → Bright green bars throughout entire run
-//   → Only ends when crossing back to negative (actual reversal)
-// - BEAR RUN: Crosses into negative territory with declining momentum
-//   → Bright red bars throughout entire run
-//   → Only ends when crossing back to positive (actual reversal)
+// Level 4 (BRIGHT GREEN) - Strong buying pressure
+//   - High volume + close near high
+//   - Institutional accumulation happening NOW
+//   - Best confirmation for bullish Daybreak signals
 //
-// WHAT TO LOOK FOR:
+// Level 3 (FADED GREEN) - Moderate buying pressure
+//   - Decent volume + close in upper range
+//   - Accumulation but not strong yet
+//   - Wait for level 4 for best entries
 //
-// 1. BULL RUN STARTING (Grey flips to bright green):
-//    - Faded green bars (accumulating but no run yet)
-//    - Then BRIGHT GREEN bars appear (bull run started!)
-//    - Table shows "BULL RUN ✓"
-//    - Bars stay bright green through entire uptrend
-//    - Only changes when crossing to negative
-//    → Major institutional buying - Strong bullish confirmation
+// Level 2 (GREY) - Neutral / No conviction
+//   - Low volume or mixed pressure
+//   - Choppy, no institutional activity
+//   - DO NOT TRADE
 //
-// 2. BEAR RUN STARTING (Grey flips to bright red):
-//    - Faded red bars (distributing but no run yet)
-//    - Then BRIGHT RED bars appear (bear run started!)
-//    - Table shows "BEAR RUN"
-//    - Bars stay bright red through entire downtrend
-//    - Only changes when crossing to positive
-//    → Major institutional selling - Avoid or short
+// Level 1 (RED) - Distribution / Selling pressure
+//   - Volume with close near low
+//   - Institutional selling
+//   - Avoid longs, consider shorts
 //
-// 3. NO RUN (Faded colors or grey):
-//    - Faded green = Positive but no sustained run yet
-//    - Faded red = Negative but no sustained run yet
-//    - Grey = Neutral, oscillating around zero
-//    - Table shows "NO RUN"
-//    → Wait for run to start before trading
-//
-// PERFECT SETUP WITH DAYBREAK:
+// PERFECT SETUP:
 // - Early Entry shows tiny sun (early warning)
-// - Main chart shows green sun (bullish signal)
-// - Volume Buildup shows BULL RUN ✓ (bright green bars stacking)
-// - All three confirm = STRONG trade setup!
+// - Main Daybreak shows green sun (trade signal)
+// - Volume Strength shows LEVEL 4 (bright green)
+// - All three align = HIGH PROBABILITY TRADE
 //
 // FAKEOUT DETECTION:
-// - Main chart shows green sun
-// - Volume Buildup shows "NO RUN" or "BEAR RUN"
-// = FAKEOUT - Skip this signal!
+// - Main indicator shows bullish signal
+// - Volume Strength shows Level 1 or Level 2
+// - SKIP THE TRADE - No institutional support
+//
+// SUSTAINED RUNS:
+// - 3+ consecutive bars at Level 4 = Strong sustained buying
+// - 3+ consecutive bars at Level 1 = Strong sustained selling
+// - Background highlights when sustained run detected
 // ==================================================================================
