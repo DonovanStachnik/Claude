@@ -72,9 +72,11 @@ strongSelling = volumePressure < 0 and not obvTrend and not accumulating
 hline(showZeroLine ? 0 : na, "Zero Line", color=color.new(color.white, 70), linestyle=hline.style_solid)
 
 // Plot volume pressure as histogram
-pressureColor = volumePressure > 0 ?
-    (volumePressure > volumePressure[1] ? color.new(greenColor, 30) : color.new(greenColor, 60)) :
-    (volumePressure < volumePressure[1] ? color.new(redColor, 30) : color.new(redColor, 60))
+var color pressureColor = na
+if volumePressure > 0
+    pressureColor := volumePressure > volumePressure[1] ? color.new(greenColor, 30) : color.new(greenColor, 60)
+else
+    pressureColor := volumePressure < volumePressure[1] ? color.new(redColor, 30) : color.new(redColor, 60)
 
 plot(volumePressure, "Volume Pressure", color=pressureColor, style=plot.style_histogram, linewidth=4)
 
