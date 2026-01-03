@@ -38,35 +38,49 @@ rangePosition = (high - low) != 0 ? (close - low) / (high - low) : 0.5
 buyingPressure = rangePosition > 0.5 ? (rangePosition - 0.5) * 2 : 0
 sellingPressure = rangePosition < 0.5 ? (0.5 - rangePosition) * 2 : 0
 
-// Net pressure (-1 to +1)
+// Net pressure for this bar (-1 to +1)
 netPressure = buyingPressure - sellingPressure
 
-// Volume relative to average
+// Volume-weighted pressure (high volume = more impact)
 avgVolume = ta.sma(volume, lookbackPeriod)
 volumeRatio = avgVolume > 0 ? volume / avgVolume : 1
+weightedPressure = netPressure * volumeRatio
 
-// Combined strength = pressure direction * volume strength
-volumeStrength = netPressure * volumeRatio
+// SUSTAINED PRESSURE - Track over multiple bars (not just current bar)
+// Use EMA to smooth and create momentum/inertia
+pressureTrend = ta.ema(weightedPressure, 5)  // 5-bar smoothing
+
+// Track recent pressure strength (last 10 bars)
+recentPressure = ta.sma(weightedPressure, 10)
+
+// Volume surge detection (above average volume)
+volumeSurge = volumeRatio > 1.2
 
 // ==================================================================================
 // STRENGTH LEVEL ASSIGNMENT (0-4)
 // ==================================================================================
 
-float strengthLevel = 2  // Default to neutral
+// Use sustained pressure trend (smoothed) instead of individual bar
+// This prevents flipping on every candle and tracks overall pressure
 
-// Determine strength level based on volume strength
-if volumeStrength >= strongThreshold
-    // Level 4: Strong buying pressure with high volume
+var float strengthLevel = 2  // Start at neutral, maintain until shift
+
+// Determine strength level based on SUSTAINED pressure trend
+// Add hysteresis - harder to change level once established (prevents whipsaws)
+
+if pressureTrend >= strongThreshold and volumeSurge
+    // Level 4: Strong sustained buying with volume surge
     strengthLevel := 4
-else if volumeStrength >= moderateThreshold
-    // Level 3: Moderate buying pressure
+else if pressureTrend >= moderateThreshold and recentPressure > 0
+    // Level 3: Moderate sustained buying
     strengthLevel := 3
-else if volumeStrength <= -moderateThreshold
-    // Level 1: Selling pressure (distribution)
+else if pressureTrend <= -moderateThreshold and recentPressure < 0
+    // Level 1: Sustained selling pressure (distribution)
     strengthLevel := 1
-else
-    // Level 2: Neutral / mixed / low conviction
+else if math.abs(pressureTrend) < moderateThreshold * 0.5
+    // Level 2: Weak pressure in both directions = neutral
     strengthLevel := 2
+// Otherwise maintain previous level (adds persistence/momentum)
 
 // Track sustained strength (bars at same level)
 var int level4Streak = 0
