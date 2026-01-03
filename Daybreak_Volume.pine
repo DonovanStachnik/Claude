@@ -50,23 +50,28 @@ avgPressure = ta.sma(math.abs(netPressure), lookbackPeriod)
 scaledPressure = avgPressure > 0 ? cumulativePressure / (avgPressure * 10) : cumulativePressure
 
 // Determine if we're in accumulation or distribution phase
-accumulating = netPressure > 0
-distributing = netPressure < 0
-neutral = netPressure == 0
+// Based on CUMULATIVE trend, not individual bars
+accumulationPhase = scaledPressure > 0 and scaledPressure > scaledPressure[1]
+distributionPhase = scaledPressure < 0 and scaledPressure < scaledPressure[1]
+accumulating = scaledPressure > 0
+distributing = scaledPressure < 0
 
-// Track sustained pressure (how long has pressure been same direction)
+// Track sustained buildup (how long has cumulative pressure been building in same direction)
 var int accumulationStreak = 0
 var int distributionStreak = 0
 
-if accumulating
+if accumulationPhase
     accumulationStreak := accumulationStreak + 1
     distributionStreak := 0
-else if distributing
+else if distributionPhase
     distributionStreak := distributionStreak + 1
     accumulationStreak := 0
 else
-    accumulationStreak := 0
-    distributionStreak := 0
+    // If trend weakens or reverses, reset streaks
+    if scaledPressure > 0 and scaledPressure < scaledPressure[1]
+        accumulationStreak := 0
+    if scaledPressure < 0 and scaledPressure > scaledPressure[1]
+        distributionStreak := 0
 
 // Strong buildup signals (sustained pressure)
 strongAccumulation = accumulationStreak >= 3
@@ -79,12 +84,18 @@ strongDistribution = distributionStreak >= 3
 // Plot zero line
 hline(showZeroLine ? 0 : na, "Zero Line", color=color.new(color.white, 70), linestyle=hline.style_solid)
 
-// Determine bar color based on current pressure
+// Determine bar color based on CUMULATIVE pressure trend (not individual bar)
+// This shows the buildup direction, not just whether current bar is up/down
 var color volumeColor = na
-if accumulating
-    volumeColor := greenColor
-else if distributing
-    volumeColor := redColor
+
+// If cumulative pressure is positive (above zero)
+if scaledPressure > 0
+    // Bright green if building up, faded green if weakening
+    volumeColor := scaledPressure > scaledPressure[1] ? greenColor : color.new(greenColor, 60)
+// If cumulative pressure is negative (below zero)
+else if scaledPressure < 0
+    // Bright red if building down, faded red if weakening
+    volumeColor := scaledPressure < scaledPressure[1] ? redColor : color.new(redColor, 60)
 else
     volumeColor := grayColor
 
