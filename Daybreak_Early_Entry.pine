@@ -43,15 +43,27 @@ suiteSignal = smaCalc(suiteMacd, 5)
 suiteHistogram = suiteMacd - suiteSignal
 
 // ==================================================================================
-// EARLY ENTRY SIGNALS
+// EARLY ENTRY SIGNALS - Momentum Shift Detection
 // ==================================================================================
 
-// These fire on crossover/crossunder - EARLIER than main indicator
-// Main indicator waits for confirmation above/below zero
-// This one fires immediately on the cross
+// These fire BEFORE crossover happens - detecting momentum shifts
+// When histogram changes direction = early warning of upcoming crossover
+// Main indicator shows crossover after it happens
+// This shows momentum turning BEFORE the crossover
 
-greenSun = ta.crossover(suiteMacd, suiteSignal)  // Early bullish
-redSun = ta.crossunder(suiteMacd, suiteSignal)   // Early bearish
+// Detect histogram direction changes (early momentum shift)
+histIncreasing = suiteHistogram > suiteHistogram[1]
+histDecreasing = suiteHistogram < suiteHistogram[1]
+histWasDecreasing = suiteHistogram[1] < suiteHistogram[2]
+histWasIncreasing = suiteHistogram[1] > suiteHistogram[2]
+
+// Early bullish = histogram was decreasing, now starts increasing (momentum turning bullish)
+// This happens BEFORE the MACD crosses above signal
+greenSun = histWasDecreasing and histIncreasing and suiteHistogram < 0
+
+// Early bearish = histogram was increasing, now starts decreasing (momentum turning bearish)
+// This happens BEFORE the MACD crosses below signal
+redSun = histWasIncreasing and histDecreasing and suiteHistogram > 0
 
 // ==================================================================================
 // VISUAL DISPLAY
@@ -77,11 +89,11 @@ plot(suiteSignal, "Signal", color=color.new(color.gray, 30), linewidth=1, style=
 // SUN SYMBOLS - Early Entry Signals
 // ==================================================================================
 
-// Green Sun (Early Bullish) - appears at bottom when crossover happens
-plotchar(greenSun, title="Early Green Sun", char="☀", location=location.bottom, color=greenColor, size=size.normal)
+// Green Sun (Early Bullish) - appears at bottom when momentum starts turning bullish
+plotchar(greenSun, title="Early Green Sun", char="☀", location=location.bottom, color=greenColor, size=size.tiny)
 
-// Red Sun (Early Bearish) - appears at top when crossunder happens
-plotchar(redSun, title="Early Red Sun", char="☀", location=location.top, color=redColor, size=size.normal)
+// Red Sun (Early Bearish) - appears at top when momentum starts turning bearish
+plotchar(redSun, title="Early Red Sun", char="☀", location=location.top, color=redColor, size=size.tiny)
 
 // ==================================================================================
 // BACKGROUND COLOR - Shows current momentum state
@@ -93,8 +105,8 @@ bgcolor(suiteMacd > 0 ? color.new(greenColor, 95) : color.new(redColor, 95), tit
 // ALERTS
 // ==================================================================================
 
-alertcondition(greenSun, "Early Bullish Entry", "Daybreak Early: Green Sun ☀ - Early bullish entry signal!")
-alertcondition(redSun, "Early Bearish Entry", "Daybreak Early: Red Sun ☀ - Early bearish entry signal!")
+alertcondition(greenSun, "Early Bullish Warning", "Daybreak Early: Green Sun ☀ - Momentum turning bullish! Crossover coming soon.")
+alertcondition(redSun, "Early Bearish Warning", "Daybreak Early: Red Sun ☀ - Momentum turning bearish! Crossunder coming soon.")
 
 // ==================================================================================
 // NOTES
@@ -104,20 +116,27 @@ alertcondition(redSun, "Early Bearish Entry", "Daybreak Early: Red Sun ☀ - Ear
 // This indicator shows the SAME Suite Diamond momentum system as the main Daybreak
 // indicator, but displays it as an oscillator in a separate pane.
 //
-// KEY DIFFERENCE - EARLY SIGNALS:
-// - Main Daybreak: Green sun appears when crossover happens AND MACD is above zero
-// - Early Entry: Green sun appears IMMEDIATELY on crossover (regardless of position)
+// KEY DIFFERENCE - EARLY vs CONFIRMED SIGNALS:
+// - Early Entry (this pane): Sun appears when HISTOGRAM changes direction (1-3 bars early)
+// - Main Daybreak (chart): Sun appears when MACD crosses signal line (confirmation)
+// - Early Entry gives advance warning, Main Daybreak confirms the move
 //
 // USAGE:
-// 1. Green ☀ at bottom = Early bullish entry (crossover happened)
-// 2. Red ☀ at top = Early bearish entry (crossunder happened)
+// 1. Green ☀ at bottom = Early bullish warning (momentum turning bullish, crossover coming soon)
+// 2. Red ☀ at top = Early bearish warning (momentum turning bearish, crossunder coming soon)
 // 3. Histogram above zero = Bullish momentum
 // 4. Histogram below zero = Bearish momentum
 // 5. Bright histogram = Momentum increasing
 // 6. Faded histogram = Momentum decreasing
 //
+// HOW IT'S EARLY:
+// - This indicator shows suns when histogram CHANGES DIRECTION (momentum shift)
+// - Main Daybreak shows suns when MACD CROSSES signal line (confirmation)
+// - Histogram direction change happens 1-3 bars BEFORE the crossover
+// - This gives you advance warning before the main chart confirms
+//
 // STRATEGY:
-// - Aggressive: Enter on sun symbols here (earlier, more risk)
-// - Conservative: Wait for sun symbols on main Daybreak chart (later, less risk)
-// - Confirmation: Use both - early warning here, confirmation on main chart
+// 1. See sun here in Early Entry pane = Get ready (momentum shifting)
+// 2. Wait for sun on main Daybreak chart = Confirmation (take the trade)
+// 3. Use both together for best timing
 // ==================================================================================
