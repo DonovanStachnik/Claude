@@ -61,9 +61,7 @@ redSun = ta.crossunder(suiteMacd, suiteSignal)   // Early bearish
 hline(showZeroLine ? 0 : na, "Zero Line", color=color.new(color.gray, 50), linestyle=hline.style_solid)
 
 // Plot histogram
-histColor = suiteHistogram > 0 ?
-    (suiteHistogram > suiteHistogram[1] ? color.new(greenColor, 40) : color.new(greenColor, 70)) :
-    (suiteHistogram < suiteHistogram[1] ? color.new(redColor, 40) : color.new(redColor, 70))
+histColor = suiteHistogram > 0 ? (suiteHistogram > suiteHistogram[1] ? color.new(greenColor, 40) : color.new(greenColor, 70)) : (suiteHistogram < suiteHistogram[1] ? color.new(redColor, 40) : color.new(redColor, 70))
 
 plot(showHistogram ? suiteHistogram : na, "Momentum", color=histColor, style=plot.style_histogram, linewidth=4)
 
@@ -76,10 +74,10 @@ plot(suiteSignal, "Signal", color=color.new(color.gray, 30), linewidth=1, style=
 // ==================================================================================
 
 // Green Sun (Early Bullish) - appears at bottom when crossover happens
-plotchar(greenSun, "Early Green Sun", "●", location.bottom, greenColor, size=size.normal)
+plotchar(greenSun, title="Early Green Sun", char="☀", location=location.bottom, color=greenColor, size=size.normal)
 
 // Red Sun (Early Bearish) - appears at top when crossunder happens
-plotchar(redSun, "Early Red Sun", "●", location.top, redColor, size=size.normal)
+plotchar(redSun, title="Early Red Sun", char="☀", location=location.top, color=redColor, size=size.normal)
 
 // ==================================================================================
 // BACKGROUND COLOR - Shows current momentum state
@@ -91,8 +89,8 @@ bgcolor(suiteMacd > 0 ? color.new(greenColor, 95) : color.new(redColor, 95), tit
 // ALERTS
 // ==================================================================================
 
-alertcondition(greenSun, "Early Bullish Entry", "Daybreak Early: Green Sun - Early bullish entry signal!")
-alertcondition(redSun, "Early Bearish Entry", "Daybreak Early: Red Sun - Early bearish entry signal!")
+alertcondition(greenSun, "Early Bullish Entry", "Daybreak Early: Green Sun ☀ - Early bullish entry signal!")
+alertcondition(redSun, "Early Bearish Entry", "Daybreak Early: Red Sun ☀ - Early bearish entry signal!")
 
 // ==================================================================================
 // NOTES
@@ -107,8 +105,8 @@ alertcondition(redSun, "Early Bearish Entry", "Daybreak Early: Red Sun - Early b
 // - Early Entry: Green sun appears IMMEDIATELY on crossover (regardless of position)
 //
 // USAGE:
-// 1. Green dot at bottom = Early bullish entry (crossover happened)
-// 2. Red dot at top = Early bearish entry (crossunder happened)
+// 1. Green ☀ at bottom = Early bullish entry (crossover happened)
+// 2. Red ☀ at top = Early bearish entry (crossunder happened)
 // 3. Histogram above zero = Bullish momentum
 // 4. Histogram below zero = Bearish momentum
 // 5. Bright histogram = Momentum increasing
