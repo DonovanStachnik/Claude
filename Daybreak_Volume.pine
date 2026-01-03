@@ -29,32 +29,40 @@ int trendPeriod = input.int(14, "Pressure Trend Period", minval=5, maxval=50, gr
 // VOLUME STRENGTH CALCULATIONS
 // ==================================================================================
 
-// Calculate where price closed in the candle's range (0 to 1)
+// Calculate buying/selling volume based on candle direction and position
+// Simple: Up candle = buying, Down candle = selling
+isUpCandle = close > open
+isDownCandle = close < open
+
+// How much of range did price move (strength)
 rangePosition = (high - low) != 0 ? (close - low) / (high - low) : 0.5
+strength = math.abs(close - open) / (high - low != 0 ? high - low : 1)
 
-// Buying/Selling pressure calculation
-// Close in upper half = buying pressure, lower half = selling pressure
-buyingPressure = rangePosition > 0.5 ? (rangePosition - 0.5) * 2 : 0
-sellingPressure = rangePosition < 0.5 ? (0.5 - rangePosition) * 2 : 0
+// Assign volume to buying or selling
+buyVol = isUpCandle ? volume : 0
+sellVol = isDownCandle ? volume : 0
 
-// Net pressure for this bar (-1 to +1)
-netPressure = buyingPressure - sellingPressure
+// Calculate buying/selling pressure over lookback period
+totalBuyVol = ta.sma(buyVol, lookbackPeriod)
+totalSellVol = ta.sma(sellVol, lookbackPeriod)
+totalVol = ta.sma(volume, lookbackPeriod)
 
-// Volume-weighted pressure
+// Pressure ratio: What % of volume is buying vs selling
+buyPressure = totalVol > 0 ? totalBuyVol / totalVol : 0.5
+sellPressure = totalVol > 0 ? totalSellVol / totalVol : 0.5
+
+// Net pressure score (0-100 scale, like RSI)
+pressureScore = buyPressure * 100
+
+// Trend: Is pressure increasing or decreasing
+pressureTrend = ta.ema(pressureScore, 10)
+trendUp = pressureTrend > pressureTrend[1]
+trendDown = pressureTrend < pressureTrend[1]
+
+// Volume relative to average
 avgVolume = ta.sma(volume, lookbackPeriod)
 volumeRatio = avgVolume > 0 ? volume / avgVolume : 1
-weightedPressure = netPressure * volumeRatio
-
-// Smooth pressure trend
-pressureTrend = ta.ema(weightedPressure, trendPeriod)
-
-// Simple momentum indicator (like RSI but for pressure)
-// Positive momentum = buying stronger, Negative = selling stronger
-pressureMomentum = ta.sma(netPressure, 5)  // 5-bar average of raw pressure
-
-// Volume strength
 highVolume = volumeRatio > 1.2
-lowVolume = volumeRatio < 0.8
 
 // ==================================================================================
 // STRENGTH LEVEL ASSIGNMENT (0-4)
@@ -62,28 +70,22 @@ lowVolume = volumeRatio < 0.8
 
 var float strengthLevel = 2  // Default neutral
 
-// Simpler logic - based on pressure momentum and volume
-// Level 4: Strong buying momentum + decent volume
-if pressureMomentum > 0.4 and volumeRatio > 0.9
+// Use pressure score (0-100) to assign levels
+// Level 4: Strong buying pressure (>65) with volume
+if pressureScore > 65 and highVolume
     strengthLevel := 4
 
-// Level 3: Moderate buying momentum
-else if pressureMomentum > 0.15
+// Level 3: Moderate buying pressure (>55)
+else if pressureScore > 55
     strengthLevel := 3
 
-// Level 1: Selling pressure
-else if pressureMomentum < -0.15
+// Level 1: Selling pressure (<45)
+else if pressureScore < 45
     strengthLevel := 1
 
-// Level 2: Weak momentum either way
-else if math.abs(pressureMomentum) <= 0.15
+// Level 2: Neutral (45-55 range)
+else
     strengthLevel := 2
-
-// Add persistence - don't change on tiny shifts
-var float lastLevel = 2
-if math.abs(strengthLevel - lastLevel) <= 1 and math.abs(pressureMomentum - pressureMomentum[1]) < 0.05
-    strengthLevel := lastLevel  // Keep previous if barely changed
-lastLevel := strengthLevel
 
 // Track sustained strength (bars at same level)
 var int level4Streak = 0
