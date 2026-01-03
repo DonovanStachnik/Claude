@@ -49,33 +49,55 @@ avgPressure = ta.sma(math.abs(netPressure), lookbackPeriod)
 // Scaled cumulative pressure (makes chart more readable)
 scaledPressure = avgPressure > 0 ? cumulativePressure / (avgPressure * 10) : cumulativePressure
 
-// Determine if we're in accumulation or distribution phase
-// Based on CUMULATIVE trend, not individual bars
-accumulationPhase = scaledPressure > 0 and scaledPressure > scaledPressure[1]
-distributionPhase = scaledPressure < 0 and scaledPressure < scaledPressure[1]
+// Determine phase based on which side of zero we're on
 accumulating = scaledPressure > 0
 distributing = scaledPressure < 0
 
-// Track sustained buildup (how long has cumulative pressure been building in same direction)
+// Track how long we've been in current phase (above or below zero)
 var int accumulationStreak = 0
 var int distributionStreak = 0
 
-if accumulationPhase
+if accumulating
     accumulationStreak := accumulationStreak + 1
     distributionStreak := 0
-else if distributionPhase
+else if distributing
     distributionStreak := distributionStreak + 1
     accumulationStreak := 0
 else
-    // If trend weakens or reverses, reset streaks
-    if scaledPressure > 0 and scaledPressure < scaledPressure[1]
-        accumulationStreak := 0
-    if scaledPressure < 0 and scaledPressure > scaledPressure[1]
-        distributionStreak := 0
+    accumulationStreak := 0
+    distributionStreak := 0
 
-// Strong buildup signals (sustained pressure)
-strongAccumulation = accumulationStreak >= 3
-strongDistribution = distributionStreak >= 3
+// Detect momentum and acceleration (for early run detection)
+building = scaledPressure > scaledPressure[1]
+weakening = scaledPressure < scaledPressure[1]
+pressureChange = scaledPressure - scaledPressure[1]
+pressureAccel = pressureChange - (scaledPressure[1] - scaledPressure[2])
+
+// Track if we're in a sustained run (stays true until reversal)
+var bool inBullRun = false
+var bool inBearRun = false
+
+// Enter bull run when crossing into positive territory with momentum
+if accumulating and building and not inBullRun
+    inBullRun := true
+    inBearRun := false
+
+// Exit bull run ONLY when crossing back to negative (actual reversal)
+if distributing
+    inBullRun := false
+
+// Enter bear run when crossing into negative territory with momentum
+if distributing and weakening and not inBearRun
+    inBearRun := true
+    inBullRun := false
+
+// Exit bear run ONLY when crossing back to positive (actual reversal)
+if accumulating
+    inBearRun := false
+
+// Strong buildup signals (sustained in phase)
+strongAccumulation = accumulationStreak >= 3 or inBullRun
+strongDistribution = distributionStreak >= 3 or inBearRun
 
 // ==================================================================================
 // VISUAL DISPLAY
@@ -84,18 +106,23 @@ strongDistribution = distributionStreak >= 3
 // Plot zero line
 hline(showZeroLine ? 0 : na, "Zero Line", color=color.new(color.white, 70), linestyle=hline.style_solid)
 
-// Determine bar color based on CUMULATIVE pressure trend (not individual bar)
-// This shows the buildup direction, not just whether current bar is up/down
+// Determine bar color based on sustained run detection
+// Key: Maintain bright color throughout entire run, only change on reversal
 var color volumeColor = na
 
-// If cumulative pressure is positive (above zero)
-if scaledPressure > 0
-    // Bright green if building up, faded green if weakening
-    volumeColor := scaledPressure > scaledPressure[1] ? greenColor : color.new(greenColor, 60)
-// If cumulative pressure is negative (below zero)
-else if scaledPressure < 0
-    // Bright red if building down, faded red if weakening
-    volumeColor := scaledPressure < scaledPressure[1] ? redColor : color.new(redColor, 60)
+// If in a sustained bull run - keep bright green throughout
+if inBullRun
+    volumeColor := greenColor
+// If in a sustained bear run - keep bright red throughout
+else if inBearRun
+    volumeColor := redColor
+// If positive but not yet in run - faded green
+else if accumulating
+    volumeColor := color.new(greenColor, 70)
+// If negative but not yet in run - faded red
+else if distributing
+    volumeColor := color.new(redColor, 70)
+// Neutral
 else
     volumeColor := grayColor
 
@@ -116,87 +143,103 @@ if barstate.islast
     table.cell(buildupTable, 0, 0, "Flow Type", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.tiny)
     table.cell(buildupTable, 1, 0, "Status", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.tiny)
 
-    // Current direction
-    table.cell(buildupTable, 0, 1, "Current", text_color=color.white, text_size=size.tiny)
-    currentText = accumulating ? "ACCUMULATION" : distributing ? "DISTRIBUTION" : "NEUTRAL"
-    currentColor = accumulating ? color.new(greenColor, 50) : distributing ? color.new(redColor, 50) : color.new(grayColor, 70)
-    table.cell(buildupTable, 1, 1, currentText, bgcolor=currentColor, text_color=color.white, text_size=size.tiny)
+    // Run status (most important)
+    table.cell(buildupTable, 0, 1, "Run Status", text_color=color.white, text_size=size.tiny)
+    runText = inBullRun ? "BULL RUN ✓" : inBearRun ? "BEAR RUN" : "NO RUN"
+    runColor = inBullRun ? color.new(greenColor, 30) : inBearRun ? color.new(redColor, 30) : color.new(grayColor, 70)
+    table.cell(buildupTable, 1, 1, runText, bgcolor=runColor, text_color=color.white, text_size=size.tiny)
+
+    // Current phase
+    table.cell(buildupTable, 0, 2, "Phase", text_color=color.white, text_size=size.tiny)
+    phaseText = accumulating ? "ACCUMULATION" : distributing ? "DISTRIBUTION" : "NEUTRAL"
+    phaseColor = accumulating ? color.new(greenColor, 60) : distributing ? color.new(redColor, 60) : color.new(grayColor, 70)
+    table.cell(buildupTable, 1, 2, phaseText, bgcolor=phaseColor, text_color=color.white, text_size=size.tiny)
 
     // Streak length
-    table.cell(buildupTable, 0, 2, "Streak", text_color=color.white, text_size=size.tiny)
+    table.cell(buildupTable, 0, 3, "Streak", text_color=color.white, text_size=size.tiny)
     streakCount = math.max(accumulationStreak, distributionStreak)
     streakColor = accumulationStreak > 0 ? color.new(greenColor, 50) : distributionStreak > 0 ? color.new(redColor, 50) : color.new(grayColor, 70)
-    table.cell(buildupTable, 1, 2, str.tostring(streakCount) + " bars", bgcolor=streakColor, text_color=color.white, text_size=size.tiny)
-
-    // Overall trend
-    table.cell(buildupTable, 0, 3, "Trend", text_color=color.white, text_size=size.tiny)
-    trendText = scaledPressure > 0 ? "BULLISH ✓" : "BEARISH"
-    trendColor = scaledPressure > 0 ? color.new(greenColor, 50) : color.new(redColor, 50)
-    table.cell(buildupTable, 1, 3, trendText, bgcolor=trendColor, text_color=color.white, text_size=size.tiny)
+    table.cell(buildupTable, 1, 3, str.tostring(streakCount) + " bars", bgcolor=streakColor, text_color=color.white, text_size=size.tiny)
 
 // ==================================================================================
 // ALERTS
 // ==================================================================================
 
-alertcondition(strongAccumulation, "Strong Accumulation Buildup", "Daybreak Volume: Strong sustained accumulation - Institutional buying building up!")
-alertcondition(strongDistribution, "Strong Distribution Buildup", "Daybreak Volume: Strong sustained distribution - Institutional selling building up!")
+// Run start alerts (most important)
+bullRunStart = inBullRun and not inBullRun[1]
+bearRunStart = inBearRun and not inBearRun[1]
 
-// Trend reversal alerts
+alertcondition(bullRunStart, "Bull Run Started", "Daybreak Volume: BULL RUN STARTED - Sustained buying pressure building!")
+alertcondition(bearRunStart, "Bear Run Started", "Daybreak Volume: BEAR RUN STARTED - Sustained selling pressure building!")
+
+// Strong phase alerts
+alertcondition(strongAccumulation, "Strong Accumulation", "Daybreak Volume: Strong accumulation - Institutional buying!")
+alertcondition(strongDistribution, "Strong Distribution", "Daybreak Volume: Strong distribution - Institutional selling!")
+
+// Phase change alerts
 buildupReversal = scaledPressure[1] < 0 and scaledPressure > 0
 breakdownReversal = scaledPressure[1] > 0 and scaledPressure < 0
 
-alertcondition(buildupReversal, "Accumulation Phase Started", "Daybreak Volume: Buildup phase started - Money flowing IN!")
-alertcondition(breakdownReversal, "Distribution Phase Started", "Daybreak Volume: Distribution phase started - Money flowing OUT!")
+alertcondition(buildupReversal, "Crossed to Positive", "Daybreak Volume: Crossed into positive territory - Accumulation starting!")
+alertcondition(breakdownReversal, "Crossed to Negative", "Daybreak Volume: Crossed into negative territory - Distribution starting!")
 
 // ==================================================================================
 // NOTES
 // ==================================================================================
 // DAYBREAK VOLUME BUILDUP INDICATOR
 //
-// This indicator tracks CUMULATIVE buying/selling pressure to show
-// if money is BUILDING UP (accumulation) or FLOWING OUT (distribution).
+// This indicator tracks CUMULATIVE buying/selling pressure to identify
+// SUSTAINED RUNS where institutional money is flowing in or out.
 //
 // HOW IT WORKS:
 // - Each bar adds buying or selling pressure to the cumulative total
 // - Close near high = Buying pressure (adds to green buildup)
 // - Close near low = Selling pressure (adds to red buildup)
-// - Bars stack up over time showing SUSTAINED institutional flow
+// - Cumulative pressure above zero = Accumulation phase
+// - Cumulative pressure below zero = Distribution phase
+//
+// RUN DETECTION (KEY FEATURE):
+// The indicator identifies when a SUSTAINED RUN starts:
+// - BULL RUN: Crosses into positive territory with building momentum
+//   → Bright green bars throughout entire run
+//   → Only ends when crossing back to negative (actual reversal)
+// - BEAR RUN: Crosses into negative territory with declining momentum
+//   → Bright red bars throughout entire run
+//   → Only ends when crossing back to positive (actual reversal)
 //
 // WHAT TO LOOK FOR:
 //
-// 1. STRONG ACCUMULATION BUILDUP (Green bars stacking):
-//    - Histogram rising and staying green
-//    - Sustained buying pressure (3+ bars)
-//    - Background flashes green
-//    - Table shows "ACCUMULATION" + "BULLISH ✓"
-//    → Institutional money flowing IN - Look for bullish Daybreak signals
+// 1. BULL RUN STARTING (Grey flips to bright green):
+//    - Faded green bars (accumulating but no run yet)
+//    - Then BRIGHT GREEN bars appear (bull run started!)
+//    - Table shows "BULL RUN ✓"
+//    - Bars stay bright green through entire uptrend
+//    - Only changes when crossing to negative
+//    → Major institutional buying - Strong bullish confirmation
 //
-// 2. STRONG DISTRIBUTION BUILDUP (Red bars stacking):
-//    - Histogram falling and staying red
-//    - Sustained selling pressure (3+ bars)
-//    - Background flashes red
-//    - Table shows "DISTRIBUTION" + "BEARISH"
-//    → Institutional money flowing OUT - Avoid or short
+// 2. BEAR RUN STARTING (Grey flips to bright red):
+//    - Faded red bars (distributing but no run yet)
+//    - Then BRIGHT RED bars appear (bear run started!)
+//    - Table shows "BEAR RUN"
+//    - Bars stay bright red through entire downtrend
+//    - Only changes when crossing to positive
+//    → Major institutional selling - Avoid or short
 //
-// 3. NEUTRAL/CHOPPY (Gray/mixed bars):
-//    - Histogram oscillating around zero
-//    - No sustained pressure
-//    - Table shows "NEUTRAL"
-//    → No institutional conviction - Wait for clear direction
-//
-// 4. TREND REVERSALS:
-//    - Histogram crosses from negative to positive = Accumulation phase starting
-//    - Histogram crosses from positive to negative = Distribution phase starting
+// 3. NO RUN (Faded colors or grey):
+//    - Faded green = Positive but no sustained run yet
+//    - Faded red = Negative but no sustained run yet
+//    - Grey = Neutral, oscillating around zero
+//    - Table shows "NO RUN"
+//    → Wait for run to start before trading
 //
 // PERFECT SETUP WITH DAYBREAK:
-// - Main chart shows green sun (bullish signal)
 // - Early Entry shows tiny sun (early warning)
-// - Volume Buildup shows GREEN stacking (sustained accumulation)
-// - Streak shows 3+ bars of buying pressure
-// = STRONG INSTITUTIONAL BACKING - High probability trade!
+// - Main chart shows green sun (bullish signal)
+// - Volume Buildup shows BULL RUN ✓ (bright green bars stacking)
+// - All three confirm = STRONG trade setup!
 //
 // FAKEOUT DETECTION:
 // - Main chart shows green sun
-// - Volume Buildup shows RED or oscillating (no sustained buying)
+// - Volume Buildup shows "NO RUN" or "BEAR RUN"
 // = FAKEOUT - Skip this signal!
 // ==================================================================================
