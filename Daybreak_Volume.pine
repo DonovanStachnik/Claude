@@ -29,40 +29,28 @@ int trendPeriod = input.int(14, "Pressure Trend Period", minval=5, maxval=50, gr
 // VOLUME STRENGTH CALCULATIONS
 // ==================================================================================
 
-// Calculate buying/selling volume based on candle direction and position
-// Simple: Up candle = buying, Down candle = selling
-isUpCandle = close > open
-isDownCandle = close < open
+// Price momentum over period (similar to ROC - Rate of Change)
+priceChange = close - close[lookbackPeriod]
+priceChangePct = close[lookbackPeriod] != 0 ? (priceChange / close[lookbackPeriod]) * 100 : 0
 
-// How much of range did price move (strength)
-rangePosition = (high - low) != 0 ? (close - low) / (high - low) : 0.5
-strength = math.abs(close - open) / (high - low != 0 ? high - low : 1)
+// Smooth it
+priceMomentum = ta.ema(priceChangePct, 5)
 
-// Assign volume to buying or selling
-buyVol = isUpCandle ? volume : 0
-sellVol = isDownCandle ? volume : 0
+// Volume trend (is volume increasing or decreasing)
+volumeMA = ta.sma(volume, lookbackPeriod)
+volumeTrend = ta.ema(volume, 10)
+volumeStrength = volumeMA > 0 ? volumeTrend / volumeMA : 1
 
-// Calculate buying/selling pressure over lookback period
-totalBuyVol = ta.sma(buyVol, lookbackPeriod)
-totalSellVol = ta.sma(sellVol, lookbackPeriod)
-totalVol = ta.sma(volume, lookbackPeriod)
+// Combine: Price momentum + Volume strength
+// This gives us a measure of conviction
+combinedStrength = priceMomentum * volumeStrength
 
-// Pressure ratio: What % of volume is buying vs selling
-buyPressure = totalVol > 0 ? totalBuyVol / totalVol : 0.5
-sellPressure = totalVol > 0 ? totalSellVol / totalVol : 0.5
+// Calculate standard deviation to normalize
+stdev = ta.stdev(combinedStrength, 50)
+normalized = stdev > 0 ? combinedStrength / stdev : 0
 
-// Net pressure score (0-100 scale, like RSI)
-pressureScore = buyPressure * 100
-
-// Trend: Is pressure increasing or decreasing
-pressureTrend = ta.ema(pressureScore, 10)
-trendUp = pressureTrend > pressureTrend[1]
-trendDown = pressureTrend < pressureTrend[1]
-
-// Volume relative to average
-avgVolume = ta.sma(volume, lookbackPeriod)
-volumeRatio = avgVolume > 0 ? volume / avgVolume : 1
-highVolume = volumeRatio > 1.2
+// Smooth the final score
+smoothed = ta.ema(normalized, 10)
 
 // ==================================================================================
 // STRENGTH LEVEL ASSIGNMENT (0-4)
@@ -70,21 +58,19 @@ highVolume = volumeRatio > 1.2
 
 var float strengthLevel = 2  // Default neutral
 
-// Use pressure score (0-100) to assign levels
-// Level 4: Strong buying pressure (>65) with volume
-if pressureScore > 65 and highVolume
+// Map smoothed score to levels
+// Positive momentum = green levels, Negative = red, Neutral = grey
+if smoothed > 1.0 and volumeStrength > 1.0
+    // Strong uptrend with volume
     strengthLevel := 4
-
-// Level 3: Moderate buying pressure (>55)
-else if pressureScore > 55
+else if smoothed > 0.3
+    // Moderate uptrend
     strengthLevel := 3
-
-// Level 1: Selling pressure (<45)
-else if pressureScore < 45
+else if smoothed < -0.3
+    // Downtrend / distribution
     strengthLevel := 1
-
-// Level 2: Neutral (45-55 range)
 else
+    // Neutral / choppy
     strengthLevel := 2
 
 // Track sustained strength (bars at same level)
