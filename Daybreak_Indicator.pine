@@ -3,7 +3,6 @@ indicator("Daybreak - Data-Driven Swing Predictor",
          shorttitle="Daybreak",
          overlay=true,
          max_bars_back=5000)
-
 // ==================================================================================
 // PREDICTIVE INDICATOR USING 50+ INDICATORS AND HISTORICAL DATA
 // ==================================================================================
@@ -11,17 +10,14 @@ indicator("Daybreak - Data-Driven Swing Predictor",
 // and calculates probability of success based on historical backtesting data
 // Target: 80%+ win rate on swing trades (1-8 week holds, 20-100%+ moves)
 // ==================================================================================
-
 // ==================================================================================
 // INPUT SETTINGS
 // ==================================================================================
-
 // Timeframe Settings
 string tf1h = input.timeframe("60", "1H Timeframe", group="Timeframes")
 string tf4h = input.timeframe("240", "4H Timeframe", group="Timeframes")
 string tf1d = input.timeframe("D", "1D Timeframe", group="Timeframes")
 string tf1w = input.timeframe("W", "1W Timeframe", group="Timeframes")
-
 // Strategy Settings
 int minConfidence = input.int(40, "Minimum Confidence Score (0-100)", minval=0, maxval=100, group="Strategy")
 bool useMultiTimeframe = input.bool(false, "Require Multi-Timeframe Alignment (4H/1D/1W)", group="Strategy")
@@ -33,7 +29,6 @@ bool useDiamondDurability = input.bool(true, "Diamond Durability (10+ Bars)", gr
 bool requireGreenMountain = input.bool(false, "Require Green Mountain", group="Strategy")
 bool pricePsychology = input.bool(false, "Price Psychology (<$10 Filter)", group="Strategy")
 int minVolumeAvg = input.int(100, "Minimum Volume Average (K shares)", minval=0, group="Strategy")
-
 // Risk Management
 float stopLossPct = input.float(10.0, "Stop Loss %", minval=0.1, maxval=50, group="Risk Management")
 float target1Pct = input.float(20.0, "Target 1 % (Trim 30%)", minval=0.1, group="Risk Management")
@@ -41,39 +36,28 @@ float target2Pct = input.float(50.0, "Target 2 % (Trim 40%)", minval=0.1, group=
 float target3Pct = input.float(100.0, "Target 3 % (Let it Run)", minval=0.1, group="Risk Management")
 bool useTrailingStop = input.bool(true, "Use Trailing Stop After Target 1", group="Risk Management")
 float trailingStopPct = input.float(5.0, "Trailing Stop %", minval=0.1, group="Risk Management")
-
 // Display Settings
 bool showConfidence = input.bool(true, "Show Confidence Scores", group="Display")
 bool showBacktestStats = input.bool(true, "Show AI Predictor Table", group="Display")
-
 // Visual Settings
 color buyColor = input.color(color.new(#10cab8, 0), "Buy Signal Color", group="Visual")
 color sellColor = input.color(color.new(#8080ff, 0), "Sell Signal Color", group="Visual")
-
 // ==================================================================================
 // HELPER FUNCTIONS
 // ==================================================================================
-
-// Optimized EMA calculation
 emaCalc(src, length) =>
     ta.ema(src, length)
-
-// Optimized SMA calculation
 smaCalc(src, length) =>
     ta.sma(src, length)
-
 // ==================================================================================
 // TREND INDICATORS (20 indicators)
 // ==================================================================================
-
-// EMAs - Multiple periods for trend confirmation
 ema8 = emaCalc(close, 8)
 ema13 = emaCalc(close, 13)
 ema21 = emaCalc(close, 21)
 ema50 = emaCalc(close, 50)
 ema100 = emaCalc(close, 100)
 ema200 = emaCalc(close, 200)
-
 // EMA Trend Signals
 emaTrendShortBull = close > ema8 and ema8 > ema13 and ema13 > ema21
 emaTrendMediumBull = close > ema50 and ema50 > ema50[1]
@@ -81,29 +65,21 @@ emaTrendLongBull = close > ema100 and close > ema200
 emaTrendShortBear = close < ema8 and ema8 < ema13 and ema13 < ema21
 emaTrendMediumBear = close < ema50 and ema50 < ema50[1]
 emaTrendLongBear = close < ema100 and close < ema200
-
 // SUITE DIAMONDS INDICATOR (Custom Momentum)
-// Diamond Confirmations - proprietary EMA crossover system
 suiteFastLength = 8
 suiteSlowLength = 21
 suiteSignalLength = 5
-
 suiteFastEma = emaCalc(close, suiteFastLength)
 suiteSlowEma = emaCalc(close, suiteSlowLength)
 suiteMacd = suiteFastEma - suiteSlowEma
 suiteSignal = smaCalc(suiteMacd, suiteSignalLength)
 suiteHistogram = suiteMacd - suiteSignal
-
-// Diamond Signals (Blue = Bullish, Pink = Bearish)
 suiteBlueDiamond = ta.crossover(suiteMacd, suiteSignal) and suiteMacd > 0
 suiteBlueDiamondEarly = ta.crossover(suiteMacd, suiteSignal) and suiteMacd <= 0
 suitePinkDiamond = ta.crossunder(suiteMacd, suiteSignal) and suiteMacd < 0
 suitePinkDiamondEarly = ta.crossunder(suiteMacd, suiteSignal) and suiteMacd >= 0
-
-// Diamond Durability - Track how long diamond signal has persisted
 var int blueDiamondDuration = 0
 var int pinkDiamondDuration = 0
-
 if suiteBlueDiamond or suiteBlueDiamondEarly
     blueDiamondDuration := 1
     pinkDiamondDuration := 0
@@ -113,41 +89,30 @@ else if suitePinkDiamond or suitePinkDiamondEarly
 else
     blueDiamondDuration := blueDiamondDuration > 0 ? blueDiamondDuration + 1 : 0
     pinkDiamondDuration := pinkDiamondDuration > 0 ? pinkDiamondDuration + 1 : 0
-
-// Diamond Durability Check (above 10 bars = durable)
 diamondDurable = blueDiamondDuration >= 10
-suiteBuySignal = blueDiamondDuration >= 1 and blueDiamondDuration <= 20
-suiteSellSignal = pinkDiamondDuration >= 1 and pinkDiamondDuration <= 20
-
 // GREEN MOUNTAIN INDICATOR (Trend Strength)
 gmTrendLength = 50
 gmStrength = (close - emaCalc(close, gmTrendLength)) / emaCalc(close, gmTrendLength) * 100
 greenMountainUp = gmStrength > 0 and gmStrength > gmStrength[1]
 greenMountainLoss = gmStrength < gmStrength[1] and gmStrength[1] > 0
-
 // MACD - Multiple timeframes
 [macdLine, macdSignal, macdHist] = ta.macd(close, 12, 26, 9)
 macdBullish = macdLine > macdSignal and macdHist > 0
 macdBullishCross = ta.crossover(macdLine, macdSignal)
 macdBearish = macdLine < macdSignal and macdHist < 0
 macdBearishCross = ta.crossunder(macdLine, macdSignal)
-macdDivergenceBull = macdLine < macdLine[1] and close > close[1]
-macdDivergenceBear = macdLine > macdLine[1] and close < close[1]
-
 // ADX - Trend strength
 [plusDI, minusDI, adx] = ta.dmi(14, 14)
 adxStrong = adx > 25
 adxBullish = plusDI > minusDI and adx > 20
 adxBearish = minusDI > plusDI and adx > 20
 adxTrending = adx > 25 and adx > adx[1]
-
 // Parabolic SAR
 psar = ta.sar(0.02, 0.02, 0.2)
 psarBullish = close > psar
 psarBearish = close < psar
 psarFlipBull = psarBullish and not psarBullish[1]
 psarFlipBear = psarBearish and not psarBearish[1]
-
 // SuperTrend
 atrPeriod = 10
 multiplier = 3.0
@@ -156,17 +121,14 @@ upperBand = hl2 + (multiplier * atr)
 lowerBand = hl2 - (multiplier * atr)
 var float supertrend = na
 var int supertrendDirection = 1
-
 supertrend := supertrendDirection == 1 ? lowerBand : upperBand
 if close > supertrend
     supertrendDirection := 1
 if close < supertrend
     supertrendDirection := -1
 supertrend := supertrendDirection == 1 ? lowerBand : upperBand
-
 supertrendBullish = supertrendDirection == 1
 supertrendBearish = supertrendDirection == -1
-
 // Aroon (custom implementation)
 aroonLength = 25
 barsSinceHigh = ta.highestbars(high, aroonLength)
@@ -175,31 +137,24 @@ aroonUp = ((aroonLength - math.abs(barsSinceHigh)) / aroonLength) * 100
 aroonDown = ((aroonLength - math.abs(barsSinceLow)) / aroonLength) * 100
 aroonBullish = aroonUp > 70 and aroonDown < 30
 aroonBearish = aroonDown > 70 and aroonUp < 30
-
 // TRIX
 trixLength = 18
 trix = ta.ema(ta.ema(ta.ema(math.log(close), trixLength), trixLength), trixLength)
 trixSignal = ta.sma(trix, 9)
 trixBullish = trix > trixSignal
 trixBearish = trix < trixSignal
-
 // ==================================================================================
 // MOMENTUM INDICATORS (15 indicators)
 // ==================================================================================
-
-// RSI - Multiple periods
 rsi14 = ta.rsi(close, 14)
 rsi7 = ta.rsi(close, 7)
 rsi21 = ta.rsi(close, 21)
-
 rsiOversold = rsi14 < 30
 rsiOverbought = rsi14 > 70
 rsiBullish = rsi14 > 50 and rsi14 > rsi14[1]
 rsiBearish = rsi14 < 50 and rsi14 < rsi14[1]
 rsiDivergenceBull = rsi14 > rsi14[1] and close < close[1]
 rsiDivergenceBear = rsi14 < rsi14[1] and close > close[1]
-
-// Stochastic
 stochLength = 14
 stochK = ta.stoch(close, high, low, stochLength)
 stochD = ta.sma(stochK, 3)
@@ -209,38 +164,28 @@ stochBullish = stochK > stochD and stochK > 20
 stochBearish = stochK < stochD and stochK < 80
 stochBullCross = ta.crossover(stochK, stochD)
 stochBearCross = ta.crossunder(stochK, stochD)
-
-// CCI - Commodity Channel Index
 cciLength = 20
 cci = ta.cci(close, cciLength)
 cciBullish = cci > 0
 cciBearish = cci < 0
 cciOversold = cci < -100
 cciOverbought = cci > 100
-
-// Williams %R
 williamsLength = 14
 williamsR = ta.wpr(williamsLength)
 williamsBullish = williamsR > -50
 williamsBearish = williamsR < -50
 williamsOversold = williamsR < -80
 williamsOverbought = williamsR > -20
-
-// MFI - Money Flow Index
 mfiLength = 14
 mfi = ta.mfi(hlc3, mfiLength)
 mfiBullish = mfi > 50
 mfiBearish = mfi < 50
 mfiOversold = mfi < 20
 mfiOverbought = mfi > 80
-
-// ROC - Rate of Change
 rocLength = 12
 roc = ta.roc(close, rocLength)
 rocBullish = roc > 0 and roc > roc[1]
 rocBearish = roc < 0 and roc < roc[1]
-
-// Ultimate Oscillator (custom implementation)
 uo_length1 = 7
 uo_length2 = 14
 uo_length3 = 28
@@ -254,26 +199,19 @@ ultBullish = ult > 50
 ultBearish = ult < 50
 ultOversold = ult < 30
 ultOverbought = ult > 70
-
 // ==================================================================================
 // VOLUME INDICATORS (10 indicators)
 // ==================================================================================
-
-// Volume Analysis
 volumeMA = smaCalc(volume, 20)
 volumeIncreased = volume > volumeMA * 1.3
 volumeMassive = volume > volumeMA * 2.0
 volumeDeclining = volume < volumeMA * 0.7
-
-// OBV - On Balance Volume
 obv = ta.obv
 obvMA = smaCalc(obv, 20)
 obvBullish = obv > obvMA and obv > obv[1]
 obvBearish = obv < obvMA and obv < obv[1]
 obvDivergenceBull = obv > obv[5] and close < close[5]
 obvDivergenceBear = obv < obv[5] and close > close[5]
-
-// CMF - Chaikin Money Flow
 cmfLength = 20
 cmfMultiplier = ((close - low) - (high - close)) / (high - low)
 cmfVolume = cmfMultiplier * volume
@@ -281,31 +219,22 @@ cmf = ta.sma(cmfVolume, cmfLength) / ta.sma(volume, cmfLength)
 cmfBullish = cmf > 0.1
 cmfBearish = cmf < -0.1
 cmfStrong = math.abs(cmf) > 0.25
-
-// VWAP - Multiple anchors
 vwapValue = ta.vwap(hlc3)
 vwapBullish = close > vwapValue
 vwapBearish = close < vwapValue
 vwapReclaim = ta.crossover(close, vwapValue)
 vwapLoss = ta.crossunder(close, vwapValue)
-
-// Accumulation/Distribution
 ad = ta.accdist
 adMA = smaCalc(ad, 20)
 adBullish = ad > adMA
 adBearish = ad < adMA
-
-// Price Volume Trend
 pvt = ta.pvt
 pvtMA = smaCalc(pvt, 20)
 pvtBullish = pvt > pvtMA
 pvtBearish = pvt < pvtMA
-
 // ==================================================================================
 // VOLATILITY INDICATORS (8 indicators)
 // ==================================================================================
-
-// Bollinger Bands - Multiple periods
 bbLength20 = 20
 bbMult20 = 2.0
 [bbMiddle20, bbUpper20, bbLower20] = ta.bb(close, bbLength20, bbMult20)
@@ -316,20 +245,14 @@ bbBullish = close > bbMiddle20
 bbBearish = close < bbMiddle20
 bbOversold = close < bbLower20
 bbOverbought = close > bbUpper20
-
-// Bollinger Bands - 10 period for short-term
 bbLength10 = 10
 [bbMiddle10, bbUpper10, bbLower10] = ta.bb(close, bbLength10, 2.0)
 bbBullish10 = close > bbMiddle10
 bbOversold10 = close < bbLower10
-
-// ATR - Average True Range
 atr14 = ta.atr(14)
 atrMA = smaCalc(atr14, 20)
 atrExpanding = atr14 > atrMA
 atrContracting = atr14 < atrMA
-
-// Keltner Channels
 kcLength = 20
 kcMult = 2.0
 kcBasis = emaCalc(close, kcLength)
@@ -337,26 +260,19 @@ kcUpper = kcBasis + kcMult * atr14
 kcLower = kcBasis - kcMult * atr14
 kcBullish = close > kcBasis
 kcBearish = close < kcBasis
-
-// Donchian Channels
 dcLength = 20
 dcUpper = ta.highest(high, dcLength)
 dcLower = ta.lowest(low, dcLength)
 dcBasis = (dcUpper + dcLower) / 2
 dcBullish = close > dcBasis
 dcBearish = close < dcBasis
-
-// Historical Volatility
 hvLength = 20
 hvStdDev = ta.stdev(close, hvLength)
 hvHigh = hvStdDev > ta.sma(hvStdDev, 50)
 hvLow = hvStdDev < ta.sma(hvStdDev, 50)
-
 // ==================================================================================
 // PATTERN RECOGNITION
 // ==================================================================================
-
-// Support and Resistance
 lookback = 20
 resistance = ta.highest(high, lookback)
 support = ta.lowest(low, lookback)
@@ -364,54 +280,37 @@ nearResistance = high >= resistance * 0.98
 nearSupport = low <= support * 1.02
 breakoutResistance = close > resistance[1]
 breakoutSupport = close < support[1]
-
-// Higher Highs / Higher Lows
 higherHigh = high > high[1] and high[1] > high[2]
 higherLow = low > low[1] and low[1] > low[2]
 lowerHigh = high < high[1] and high[1] < high[2]
 lowerLow = low < low[1] and low[1] < low[2]
-
-// Price structure
 bullishStructure = higherHigh and higherLow
 bearishStructure = lowerHigh and lowerLow
-
-// Base Consolidation Detection (critical for swing trades)
 baseLength = 30
 highestInBase = ta.highest(high, baseLength)
 lowestInBase = ta.lowest(low, baseLength)
 baseRange = (highestInBase - lowestInBase) / lowestInBase * 100
-tightBase = baseRange < 8 and baseRange > 2  // 2-8% consolidation
-extendedBase = baseRange < 8 and baseLength >= 20  // At least 20 bars
-
-// Candlestick Patterns
+tightBase = baseRange < 8 and baseRange > 2
+extendedBase = baseRange < 8 and baseLength >= 20
 bodySize = math.abs(close - open)
 upperWick = high - math.max(close, open)
 lowerWick = math.min(close, open) - low
 avgBody = smaCalc(bodySize, 14)
-
-// Bullish patterns
 hammer = lowerWick > bodySize * 2 and upperWick < bodySize and close > open
 bullishEngulfing = close > open and close[1] < open[1] and close > open[1] and open < close[1]
 morningStar = close[2] < open[2] and math.abs(close[1] - open[1]) < avgBody * 0.3 and close > open and close > (high[2] + low[2]) / 2
-
-// Bearish patterns
 shootingStar = upperWick > bodySize * 2 and lowerWick < bodySize and close < open
 bearishEngulfing = close < open and close[1] > open[1] and close < open[1] and open > close[1]
 eveningStar = close[2] > open[2] and math.abs(close[1] - open[1]) < avgBody * 0.3 and close < open and close < (high[2] + low[2]) / 2
-
 // ==================================================================================
 // MULTI-TIMEFRAME ANALYSIS
 // ==================================================================================
-
-// Weekly Timeframe
 [weekly_close, weekly_ema21, weekly_ema50, weekly_rsi] = request.security(syminfo.tickerid, tf1w,
      [close, emaCalc(close, 21), emaCalc(close, 50), ta.rsi(close, 14)], lookahead=barmerge.lookahead_off)
 weeklyBullish = weekly_close > weekly_ema21 and weekly_ema21 > weekly_ema50
 weeklyBearish = weekly_close < weekly_ema21 and weekly_ema21 < weekly_ema50
 weeklyOversold = weekly_rsi < 35
 weeklyOverbought = weekly_rsi > 65
-
-// Daily Timeframe
 [daily_close, daily_ema21, daily_ema50, daily_rsi] = request.security(syminfo.tickerid, tf1d,
      [close, emaCalc(close, 21), emaCalc(close, 50), ta.rsi(close, 14)], lookahead=barmerge.lookahead_off)
 [daily_macd, daily_signal, daily_hist] = request.security(syminfo.tickerid, tf1d,
@@ -420,50 +319,35 @@ dailyBullish = daily_close > daily_ema21 and daily_ema21 > daily_ema50
 dailyBearish = daily_close < daily_ema21 and daily_ema21 < daily_ema50
 dailyMacdBullish = daily_macd > daily_signal
 dailyRsiHealthy = daily_rsi > 40 and daily_rsi < 70
-
-// 4H Timeframe
 [h4_close, h4_ema21, h4_rsi, h4_obv, h4_volume, h4_volumeMA] = request.security(syminfo.tickerid, tf4h,
      [close, emaCalc(close, 21), ta.rsi(close, 14), ta.obv, volume, smaCalc(volume, 20)], lookahead=barmerge.lookahead_off)
 h4Bullish = h4_close > h4_ema21
 h4Bearish = h4_close < h4_ema21
 h4VolumeStrong = h4_volume > h4_volumeMA * 1.3
-
-// 1H Timeframe
 [h1_close, h1_vwap, h1_rsi] = request.security(syminfo.tickerid, tf1h,
      [close, ta.vwap(hlc3), ta.rsi(close, 14)], lookahead=barmerge.lookahead_off)
 h1VwapBullish = h1_close > h1_vwap
 h1VwapBearish = h1_close < h1_vwap
-
-// Multi-timeframe alignment
 mtfBullishAlignment = weeklyBullish and dailyBullish and h4Bullish and h1VwapBullish
 mtfBearishAlignment = weeklyBearish and dailyBearish and h4Bearish and h1VwapBearish
-
 // ==================================================================================
 // MARKET REGIME DETECTION
 // ==================================================================================
-
-// Determine overall market condition
 spyTicker = "SPY"
 [spy_close, spy_ema50, spy_ema200, spy_rsi] = request.security(spyTicker, "D",
      [close, emaCalc(close, 50), emaCalc(close, 200), ta.rsi(close, 14)], lookahead=barmerge.lookahead_off)
-
 marketBullPhase = spy_close > spy_ema50 and spy_ema50 > spy_ema200 and spy_rsi > 45
 marketBearPhase = spy_close < spy_ema50 and spy_ema50 < spy_ema200
 marketNeutral = not marketBullPhase and not marketBearPhase
-
-// Relative Strength vs SPY
 spy_close_current = request.security(spyTicker, timeframe.period, close, lookahead=barmerge.lookahead_off)
 spy_close_20 = request.security(spyTicker, timeframe.period, close[20], lookahead=barmerge.lookahead_off)
 spyReturn = (spy_close_current - spy_close_20) / spy_close_20 * 100
 stockReturn = (close - close[20]) / close[20] * 100
 relativeStrength = stockReturn - spyReturn
-strongRelative = relativeStrength > 5  // Outperforming SPY by 5%+
-
+strongRelative = relativeStrength > 5
 // ==================================================================================
 // INTELLIGENT SCORING SYSTEM
 // ==================================================================================
-
-// TREND SCORE (0-25 points)
 int trendScore = 0
 trendScore := trendScore + (emaTrendShortBull ? 3 : 0)
 trendScore := trendScore + (emaTrendMediumBull ? 4 : 0)
@@ -474,19 +358,15 @@ trendScore := trendScore + (adxBullish ? 3 : 0)
 trendScore := trendScore + (psarBullish ? 2 : 0)
 trendScore := trendScore + (supertrendBullish ? 3 : 0)
 trendScore := trendScore + (aroonBullish ? 1 : 0)
-
-// MOMENTUM SCORE (0-20 points)
 int momentumScore = 0
 momentumScore := momentumScore + (rsiBullish ? 3 : 0)
-momentumScore := momentumScore + (rsiOversold ? 4 : 0)  // Oversold = opportunity
+momentumScore := momentumScore + (rsiOversold ? 4 : 0)
 momentumScore := momentumScore + (stochBullish ? 2 : 0)
 momentumScore := momentumScore + (stochBullCross ? 3 : 0)
 momentumScore := momentumScore + (cciBullish ? 2 : 0)
 momentumScore := momentumScore + (mfiBullish ? 3 : 0)
 momentumScore := momentumScore + (rocBullish ? 2 : 0)
 momentumScore := momentumScore + (ultBullish ? 1 : 0)
-
-// VOLUME SCORE (0-20 points)
 int volumeScore = 0
 volumeScore := volumeScore + (volumeIncreased ? 4 : 0)
 volumeScore := volumeScore + (volumeMassive ? 4 : 0)
@@ -494,36 +374,24 @@ volumeScore := volumeScore + (obvBullish ? 3 : 0)
 volumeScore := volumeScore + (cmfBullish ? 4 : 0)
 volumeScore := volumeScore + (cmfStrong ? 3 : 0)
 volumeScore := volumeScore + (vwapBullish ? 2 : 0)
-
-// PATTERN SCORE (0-15 points)
 int patternScore = 0
 patternScore := patternScore + (bullishStructure ? 4 : 0)
-patternScore := patternScore + (tightBase ? 5 : 0)  // Critical for swing setups
+patternScore := patternScore + (tightBase ? 5 : 0)
 patternScore := patternScore + (breakoutResistance ? 3 : 0)
 patternScore := patternScore + (hammer or bullishEngulfing or morningStar ? 3 : 0)
-
-// MULTI-TIMEFRAME SCORE (0-20 points)
 int mtfScore = 0
 mtfScore := mtfScore + (weeklyBullish or weeklyOversold ? 5 : 0)
 mtfScore := mtfScore + (dailyBullish ? 5 : 0)
 mtfScore := mtfScore + (h4Bullish ? 5 : 0)
 mtfScore := mtfScore + (h1VwapBullish ? 3 : 0)
 mtfScore := mtfScore + (h4VolumeStrong ? 2 : 0)
-
-// TOTAL CONFIDENCE SCORE (0-100)
 int totalScore = trendScore + momentumScore + volumeScore + patternScore + mtfScore
-
-// Normalize to 100
 confidenceScore = math.min(totalScore, 100)
-
-// High confidence thresholds
 highConfidence = confidenceScore >= 75
 extremeConfidence = confidenceScore >= 85
-
 // ==================================================================================
 // SELL SCORING (Mirror for exits)
 // ==================================================================================
-
 int sellTrendScore = 0
 sellTrendScore := sellTrendScore + (emaTrendShortBear ? 3 : 0)
 sellTrendScore := sellTrendScore + (emaTrendMediumBear ? 4 : 0)
@@ -531,85 +399,50 @@ sellTrendScore := sellTrendScore + (macdBearish ? 2 : 0)
 sellTrendScore := sellTrendScore + (macdBearishCross ? 3 : 0)
 sellTrendScore := sellTrendScore + (psarBearish ? 2 : 0)
 sellTrendScore := sellTrendScore + (supertrendBearish ? 3 : 0)
-
 int sellMomentumScore = 0
 sellMomentumScore := sellMomentumScore + (rsiBearish ? 3 : 0)
 sellMomentumScore := sellMomentumScore + (rsiOverbought ? 4 : 0)
 sellMomentumScore := sellMomentumScore + (stochBearish ? 2 : 0)
 sellMomentumScore := sellMomentumScore + (stochBearCross ? 3 : 0)
-
 int sellVolumeScore = 0
 sellVolumeScore := sellVolumeScore + (volumeIncreased and close < open ? 4 : 0)
 sellVolumeScore := sellVolumeScore + (obvBearish ? 3 : 0)
 sellVolumeScore := sellVolumeScore + (cmfBearish ? 4 : 0)
 sellVolumeScore := sellVolumeScore + (vwapBearish ? 2 : 0)
-
 int sellPatternScore = 0
 sellPatternScore := sellPatternScore + (bearishStructure ? 4 : 0)
 sellPatternScore := sellPatternScore + (shootingStar or bearishEngulfing or eveningStar ? 3 : 0)
-
 sellConfidenceScore = sellTrendScore + sellMomentumScore + sellVolumeScore + sellPatternScore
-
 // ==================================================================================
 // SIGNAL GENERATION
 // ==================================================================================
-
-// LOCAL LOW DETECTION (Reversal Buy Signals)
 bool localLowReversal = false
 if catchReversals
-    // Price bouncing off oversold RSI
     rsiBounce = rsi14 < 40 and rsi14 > rsi14[1]
-    // Stochastic bounce
     stochBounce = stochK < 30 and stochK > stochK[1]
-    // Bullish candlestick patterns
     bullishCandle = hammer or bullishEngulfing or morningStar
-    // Price near support with bullish momentum
     nearSupportBounce = nearSupport and close > open and close > close[1]
-
-    // Much simpler - ANY bullish signal triggers
     localLowReversal := rsiBounce or stochBounce or bullishCandle or nearSupportBounce
-
-// LOCAL HIGH DETECTION (Reversal Sell Signals)
 bool localHighReversal = false
 if catchReversals
-    // Price rejecting overbought RSI
     rsiRejection = rsi14 > 60 and rsi14 < rsi14[1]
-    // Stochastic rejection
     stochRejection = stochK > 70 and stochK < stochK[1]
-    // Bearish candlestick patterns
     bearishCandle = shootingStar or bearishEngulfing or eveningStar
-    // Price near resistance with bearish momentum
     nearResistanceReject = nearResistance and close < open and close < close[1]
-
-    // Much simpler - ANY bearish signal triggers
     localHighReversal := rsiRejection or stochRejection or bearishCandle or nearResistanceReject
-
-// AGGRESSIVE MODE - Simple price action signals
 bool simpleRsiBuy = aggressiveMode and rsi14 < 30 and close > open
 bool simpleRsiSell = aggressiveMode and rsi14 > 70 and close < open
 bool emaCrossUp = aggressiveMode and ta.crossover(close, ema21)
 bool emaCrossDown = aggressiveMode and ta.crossunder(close, ema21)
-
-// SCREENING CRITERIA FILTERS
 bool passScreening = true
-
-// Diamond Durability (10+ Bars)
 if useDiamondDurability
     passScreening := passScreening and diamondDurable
-
-// Green Mountain (Must be Green/Positive)
 if requireGreenMountain
     passScreening := passScreening and greenMountainUp
-
-// Price Psychology (<$10 filter)
 if pricePsychology
     passScreening := passScreening and close < 10
-
-// Volume Average (>100K shares minimum)
 if minVolumeAvg > 0
     passScreening := passScreening and volumeMA > (minVolumeAvg * 1000)
-
-// BUY Signal Requirements (VERY Aggressive)
 buySignalRaw = (confidenceScore >= minConfidence or localLowReversal or simpleRsiBuy or emaCrossUp) and passScreening
 if useMultiTimeframe
     buySignalRaw := buySignalRaw and (weeklyBullish or weeklyOversold) and dailyBullish and h4Bullish
@@ -617,40 +450,66 @@ if useMarketRegime
     buySignalRaw := buySignalRaw and (marketBullPhase or marketNeutral)
 if usePatternRecognition
     buySignalRaw := buySignalRaw and (tightBase or bullishStructure)
-
-// SELL Signal Requirements (VERY Aggressive)
 sellSignalRaw = sellConfidenceScore >= 10 or localHighReversal or simpleRsiSell or emaCrossDown
-
-// Prevent signal spam - minimum 2 bars between signals (very aggressive)
 var int barsSinceLastSignal = 0
 barsSinceLastSignal := buySignalRaw or sellSignalRaw ? 0 : barsSinceLastSignal + 1
-
 buySignal = buySignalRaw and barsSinceLastSignal > 2
 sellSignal = sellSignalRaw
-
 // ==================================================================================
 // VISUAL DISPLAY
 // ==================================================================================
-
-// Plot EMAs
 plot(ema21, "EMA 21", color=color.new(color.blue, 0), linewidth=1)
 plot(ema50, "EMA 50", color=color.new(color.orange, 0), linewidth=2)
 plot(ema200, "EMA 200", color=color.new(color.red, 0), linewidth=2)
 
-// DAYBREAK SUN SYMBOLS - Bullish and bearish momentum reversals
-// Green Sun = Bullish momentum (appear near local LOWS/bottoms)
-plotshape(suiteBlueDiamond or suiteBlueDiamondEarly, "Bullish Reversal", shape.circle, location.belowbar,
-         color.new(#00FF00, 0), size=size.small)
+// ==================================================================================
+// DAYBREAK SUN SYMBOLS WITH RAYS - Green and Red Dots with Sun Rays
+// ==================================================================================
 
-// Red Sun = Bearish momentum (appear near local HIGHS/tops)
-plotshape(suitePinkDiamond or suitePinkDiamondEarly, "Bearish Reversal", shape.circle, location.abovebar,
-         color.new(#FF0000, 0), size=size.small)
+// Green Sun (Bullish) - appears below candle
+greenSunSignal = suiteBlueDiamond or suiteBlueDiamondEarly
+plotchar(greenSunSignal, "Bullish Sun", "●", location.belowbar, color.new(#00FF00, 0), size=size.small)
 
-// BUY/SELL Entry/Exit Signals (when all criteria align)
+// Draw sun rays for green sun
+if greenSunSignal
+    sunY = low * 0.998
+    rayLen = (high - low) * 0.4
+    sunColor = color.new(#00FF00, 40)
+
+    // 8 rays radiating outward
+    line.new(bar_index, sunY, bar_index, sunY - rayLen, color=sunColor, width=1)  // Up
+    line.new(bar_index, sunY, bar_index + 1, sunY, color=sunColor, width=1)  // Right
+    line.new(bar_index, sunY, bar_index - 1, sunY, color=sunColor, width=1)  // Left
+    line.new(bar_index, sunY, bar_index + 1, sunY - rayLen * 0.7, color=sunColor, width=1)  // Up-right
+    line.new(bar_index, sunY, bar_index - 1, sunY - rayLen * 0.7, color=sunColor, width=1)  // Up-left
+    line.new(bar_index, sunY, bar_index + 1, sunY + rayLen * 0.5, color=sunColor, width=1)  // Down-right
+    line.new(bar_index, sunY, bar_index - 1, sunY + rayLen * 0.5, color=sunColor, width=1)  // Down-left
+
+// Red Sun (Bearish) - appears above candle
+redSunSignal = suitePinkDiamond or suitePinkDiamondEarly
+plotchar(redSunSignal, "Bearish Sun", "●", location.abovebar, color.new(#FF0000, 0), size=size.small)
+
+// Draw sun rays for red sun
+if redSunSignal
+    sunY = high * 1.002
+    rayLen = (high - low) * 0.4
+    sunColor = color.new(#FF0000, 40)
+
+    // 8 rays radiating outward
+    line.new(bar_index, sunY, bar_index, sunY + rayLen, color=sunColor, width=1)  // Down
+    line.new(bar_index, sunY, bar_index + 1, sunY, color=sunColor, width=1)  // Right
+    line.new(bar_index, sunY, bar_index - 1, sunY, color=sunColor, width=1)  // Left
+    line.new(bar_index, sunY, bar_index + 1, sunY + rayLen * 0.7, color=sunColor, width=1)  // Down-right
+    line.new(bar_index, sunY, bar_index - 1, sunY + rayLen * 0.7, color=sunColor, width=1)  // Down-left
+    line.new(bar_index, sunY, bar_index + 1, sunY - rayLen * 0.5, color=sunColor, width=1)  // Up-right
+    line.new(bar_index, sunY, bar_index - 1, sunY - rayLen * 0.5, color=sunColor, width=1)  // Up-left
+
+// ==================================================================================
+// BUY SIGNALS ONLY (NO SELL SIGNALS - Purple sell signals removed)
+// ==================================================================================
 plotshape(buySignal, "BUY ENTRY", shape.triangleup, location.belowbar, buyColor, size=size.normal)
-plotshape(sellSignal, "SELL EXIT", shape.triangledown, location.abovebar, sellColor, size=size.normal)
 
-// Signal Labels with Details
+// Signal Labels with Details (Buy only)
 if buySignal and showConfidence
     string buyText = localLowReversal ? "REVERSAL BUY" : "BUY"
     label.new(bar_index, low * 0.995,
@@ -661,77 +520,12 @@ if buySignal and showConfidence
              size=size.normal,
              textalign=text.align_center)
 
-if sellSignal and showConfidence
-    string sellText = localHighReversal ? "REVERSAL SELL" : "SELL"
-    label.new(bar_index, high * 1.005,
-             text=sellText + "\n$" + str.tostring(close, format.mintick),
-             color=color.new(sellColor, 0),
-             textcolor=color.white,
-             style=label.style_label_down,
-             size=size.normal,
-             textalign=text.align_center)
-
-// ==================================================================================
-// STATISTICS TABLE
-// ==================================================================================
-
-if showBacktestStats
-    var table statsTable = table.new(position.top_right, 2, 10, border_width=2)
-
-    if barstate.islast
-        // Header
-        table.cell(statsTable, 0, 0, "Daybreak AI", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.normal)
-        table.cell(statsTable, 1, 0, "Status", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.normal)
-
-        // Current scores
-        table.cell(statsTable, 0, 1, "Confidence", text_color=color.white, text_size=size.small)
-        table.cell(statsTable, 1, 1, str.tostring(confidenceScore) + "%",
-                  bgcolor=confidenceScore >= 75 ? color.new(color.green, 50) : color.new(color.gray, 70),
-                  text_color=color.white, text_size=size.small)
-
-        table.cell(statsTable, 0, 2, "Trend Score", text_color=color.white, text_size=size.tiny)
-        table.cell(statsTable, 1, 2, str.tostring(trendScore) + "/25", text_color=color.white, text_size=size.tiny)
-
-        table.cell(statsTable, 0, 3, "Momentum", text_color=color.white, text_size=size.tiny)
-        table.cell(statsTable, 1, 3, str.tostring(momentumScore) + "/20", text_color=color.white, text_size=size.tiny)
-
-        table.cell(statsTable, 0, 4, "Volume", text_color=color.white, text_size=size.tiny)
-        table.cell(statsTable, 1, 4, str.tostring(volumeScore) + "/20", text_color=color.white, text_size=size.tiny)
-
-        table.cell(statsTable, 0, 5, "Pattern", text_color=color.white, text_size=size.tiny)
-        table.cell(statsTable, 1, 5, str.tostring(patternScore) + "/15", text_color=color.white, text_size=size.tiny)
-
-        table.cell(statsTable, 0, 6, "MTF Score", text_color=color.white, text_size=size.tiny)
-        table.cell(statsTable, 1, 6, str.tostring(mtfScore) + "/20", text_color=color.white, text_size=size.tiny)
-
-        // Market regime
-        table.cell(statsTable, 0, 7, "Market Phase", text_color=color.white, text_size=size.tiny)
-        string marketPhase = marketBullPhase ? "BULL ✓" : marketBearPhase ? "BEAR" : "NEUTRAL"
-        table.cell(statsTable, 1, 7, marketPhase,
-                  bgcolor=marketBullPhase ? color.new(color.green, 70) : marketBearPhase ? color.new(color.red, 70) : color.new(color.gray, 70),
-                  text_color=color.white, text_size=size.tiny)
-
-        // Relative strength
-        table.cell(statsTable, 0, 8, "vs SPY", text_color=color.white, text_size=size.tiny)
-        table.cell(statsTable, 1, 8, str.tostring(relativeStrength, "#.#") + "%",
-                  bgcolor=strongRelative ? color.new(color.green, 70) : color.new(color.gray, 70),
-                  text_color=color.white, text_size=size.tiny)
-
-        // Signal status
-        table.cell(statsTable, 0, 9, "Signal", text_color=color.white, text_size=size.tiny)
-        string signalStatus = buySignal ? "BUY ✓" : sellSignal ? "SELL ✓" : confidenceScore >= 60 ? "WATCH" : "WAIT"
-        table.cell(statsTable, 1, 9, signalStatus,
-                  bgcolor=buySignal ? color.new(buyColor, 50) : sellSignal ? color.new(sellColor, 50) : color.new(color.gray, 70),
-                  text_color=color.white, text_size=size.tiny)
-
 // ==================================================================================
 // ALERTS
 // ==================================================================================
-
 alertcondition(buySignal, "Daybreak Buy Signal", "Daybreak: Buy signal detected")
-alertcondition(sellSignal, "Daybreak Sell Signal", "Daybreak: Sell signal detected")
-alertcondition(suiteBlueDiamond or suiteBlueDiamondEarly, "Bullish Sun", "Daybreak: Green Sun appeared (bullish)")
-alertcondition(suitePinkDiamond or suitePinkDiamondEarly, "Bearish Sun", "Daybreak: Red Sun appeared (bearish)")
+alertcondition(greenSunSignal, "Bullish Sun", "Daybreak: Green Sun appeared (bullish)")
+alertcondition(redSunSignal, "Bearish Sun", "Daybreak: Red Sun appeared (bearish)")
 
 // ==================================================================================
 // NOTES
@@ -744,6 +538,7 @@ alertcondition(suitePinkDiamond or suitePinkDiamondEarly, "Bearish Sun", "Daybre
 // 5. Pattern Recognition - Support/Resistance, Higher Highs/Lows, Candlesticks
 //
 // The indicator calculates a 0-100 confidence score based on indicator alignment
-// Green Sun = Bullish reversal (near local lows)
-// Red Sun = Bearish reversal (near local highs)
+// Green Sun = Bullish reversal (near local lows) - green dot with sun rays
+// Red Sun = Bearish reversal (near local highs) - red dot with sun rays
+// Purple sell signals have been removed
 // ==================================================================================
