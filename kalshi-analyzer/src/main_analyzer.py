@@ -18,7 +18,15 @@ class KalshiAnalyzer:
 
     def __init__(self):
         load_dotenv()
-        self.kalshi = KalshiClient()
+        try:
+            self.kalshi = KalshiClient()
+            self.api_available = True
+        except Exception as e:
+            print(f"⚠ Warning: Could not connect to Kalshi API: {e}")
+            print("  Will use demo data for testing")
+            self.kalshi = None
+            self.api_available = False
+
         self.research = ResearchEngine()
         self.min_edge = float(os.getenv('MIN_EDGE_PERCENTAGE', 5.0))
         self.min_liquidity = float(os.getenv('MIN_LIQUIDITY', 1000))
@@ -37,10 +45,32 @@ class KalshiAnalyzer:
         print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print()
 
+        # Check if API is available
+        if not self.api_available:
+            print("⚠ API not available - using demo data")
+            print("  (When running on your machine with network access, real data will be used)")
+            print()
+            from demo_data import generate_demo_opportunities
+            demo_data = generate_demo_opportunities()
+            return demo_data['opportunities']
+
         # Step 1: Fetch all markets (authentication happens per-request)
         print("[1/4] Fetching all active markets...")
-        markets = self.kalshi.get_all_markets(status="open")
-        print(f"✓ Found {len(markets)} active markets")
+        try:
+            markets = self.kalshi.get_all_markets(status="open")
+            if not markets or len(markets) == 0:
+                print("✗ No markets fetched (network issue or API unavailable)")
+                print("  Falling back to demo data...")
+                from demo_data import generate_demo_opportunities
+                demo_data = generate_demo_opportunities()
+                return demo_data['opportunities']
+            print(f"✓ Found {len(markets)} active markets")
+        except Exception as e:
+            print(f"✗ Failed to fetch markets: {e}")
+            print("  Falling back to demo data...")
+            from demo_data import generate_demo_opportunities
+            demo_data = generate_demo_opportunities()
+            return demo_data['opportunities']
         print()
 
         # Step 2: Categorize markets
@@ -181,7 +211,7 @@ class KalshiAnalyzer:
 
         if filename is None:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"data/opportunities_{timestamp}.json"
+            filename = f"../data/opportunities_{timestamp}.json"
 
         # Prepare data for JSON
         output = {
@@ -197,7 +227,7 @@ class KalshiAnalyzer:
             })
 
         # Save to file
-        os.makedirs('data', exist_ok=True)
+        os.makedirs('../data', exist_ok=True)
         with open(filename, 'w') as f:
             json.dump(output, f, indent=2)
 

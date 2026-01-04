@@ -1,6 +1,5 @@
 """
-Kalshi API Client - RSA Authentication
-Uses RSA-PSS signing for authentication
+Kalshi API Client - RSA Authentication using pycryptodome
 """
 
 import os
@@ -8,10 +7,9 @@ import requests
 import base64
 import time
 from typing import Dict, List, Optional
-from datetime import datetime
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import padding, rsa
-from cryptography.hazmat.backends import default_backend
+from Crypto.PublicKey import RSA
+from Crypto.Signature import pkcs1_15
+from Crypto.Hash import SHA256
 
 
 class KalshiClient:
@@ -19,19 +17,27 @@ class KalshiClient:
 
     def __init__(self, key_id: str = None, private_key_pem: str = None):
         self.key_id = key_id or os.getenv('KALSHI_KEY_ID')
-        self.private_key_pem = private_key_pem or os.getenv('KALSHI_PRIVATE_KEY')
         self.base_url = 'https://trading-api.kalshi.com'
         self.session = requests.Session()
 
-        if not self.key_id or not self.private_key_pem:
-            raise ValueError("Key ID and Private Key required")
+        if not self.key_id:
+            raise ValueError("Key ID required")
 
-        # Load the private key
-        self.private_key = serialization.load_pem_private_key(
-            self.private_key_pem.encode('utf-8'),
-            password=None,
-            backend=default_backend()
-        )
+        # Load private key from file or parameter
+        if private_key_pem:
+            self.private_key = RSA.import_key(private_key_pem)
+        else:
+            # Try loading from separate file first
+            key_file = os.path.join(os.path.dirname(__file__), '..', 'kalshi_private.key')
+            if os.path.exists(key_file):
+                with open(key_file, 'r') as f:
+                    self.private_key = RSA.import_key(f.read())
+            else:
+                # Fall back to environment variable
+                private_key_pem = os.getenv('KALSHI_PRIVATE_KEY')
+                if not private_key_pem:
+                    raise ValueError("Private key not found in file or environment")
+                self.private_key = RSA.import_key(private_key_pem)
 
     def _sign_request(self, timestamp: str, method: str, path: str) -> str:
         """Sign request using RSA-PSS"""
@@ -41,15 +47,11 @@ class KalshiClient:
         # Create message to sign
         message = f"{timestamp}{method}{path_without_query}"
 
-        # Sign with RSA-PSS
-        signature = self.private_key.sign(
-            message.encode('utf-8'),
-            padding.PSS(
-                mgf=padding.MGF1(hashes.SHA256()),
-                salt_length=padding.PSS.DIGEST_LENGTH
-            ),
-            hashes.SHA256()
-        )
+        # Create hash
+        h = SHA256.new(message.encode('utf-8'))
+
+        # Sign with PKCS#1 v1.5 (Kalshi uses this, not PSS)
+        signature = pkcs1_15.new(self.private_key).sign(h)
 
         # Return base64 encoded signature
         return base64.b64encode(signature).decode('utf-8')
@@ -72,53 +74,44 @@ class KalshiClient:
         # Make request
         url = f"{self.base_url}{path}"
 
-        if method.upper() == 'GET':
-            response = self.session.get(url, headers=headers, params=params)
-        elif method.upper() == 'POST':
-            response = self.session.post(url, headers=headers, json=json_data)
-        else:
-            raise ValueError(f"Unsupported method: {method}")
+        try:
+            if method.upper() == 'GET':
+                response = self.session.get(url, headers=headers, params=params, timeout=10)
+            elif method.upper() == 'POST':
+                response = self.session.post(url, headers=headers, json=json_data, timeout=10)
+            else:
+                raise ValueError(f"Unsupported method: {method}")
 
-        response.raise_for_status()
-        return response.json()
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"Request failed: {e}")
+            if hasattr(e.response, 'text'):
+                print(f"Response: {e.response.text}")
+            return None
 
     def get_balance(self) -> Dict:
         """Get account balance"""
-        try:
-            return self._make_request('GET', '/trade-api/v2/portfolio/balance')
-        except Exception as e:
-            print(f"Error getting balance: {e}")
-            return {}
+        result = self._make_request('GET', '/trade-api/v2/portfolio/balance')
+        return result if result else {}
 
-    def get_all_markets(self, status: str = "open", limit: int = 1000) -> List[Dict]:
+    def get_all_markets(self, status: str = "open", limit: int = 200) -> List[Dict]:
         """Get all markets"""
-        try:
-            params = {
-                'status': status,
-                'limit': limit
-            }
-            result = self._make_request('GET', '/trade-api/v2/markets', params=params)
-            return result.get('markets', [])
-        except Exception as e:
-            print(f"Error fetching markets: {e}")
-            return []
+        params = {
+            'status': status,
+            'limit': limit
+        }
+        result = self._make_request('GET', '/trade-api/v2/markets', params=params)
+        return result.get('markets', []) if result else []
 
     def get_market(self, ticker: str) -> Optional[Dict]:
         """Get specific market details"""
-        try:
-            result = self._make_request('GET', f'/trade-api/v2/markets/{ticker}')
-            return result.get('market')
-        except Exception as e:
-            print(f"Error fetching market {ticker}: {e}")
-            return None
+        result = self._make_request('GET', f'/trade-api/v2/markets/{ticker}')
+        return result.get('market') if result else None
 
     def get_orderbook(self, ticker: str) -> Optional[Dict]:
         """Get orderbook for market"""
-        try:
-            return self._make_request('GET', f'/trade-api/v2/markets/{ticker}/orderbook')
-        except Exception as e:
-            print(f"Error fetching orderbook {ticker}: {e}")
-            return None
+        return self._make_request('GET', f'/trade-api/v2/markets/{ticker}/orderbook')
 
     def categorize_market(self, market: Dict) -> str:
         """Categorize market by type"""
@@ -161,11 +154,11 @@ if __name__ == "__main__":
     client = KalshiClient()
 
     # Test balance
-    print("\n[1] Testing authentication with balance check...")
+    print("\n[1] Testing authentication...")
     balance = client.get_balance()
     if balance:
         print(f"✓ Authentication successful!")
-        print(f"  Balance: ${balance.get('balance', 'N/A')}")
+        print(f"  Balance: ${balance.get('balance', 0) / 100:.2f}")
     else:
         print("✗ Authentication failed")
 
@@ -180,3 +173,5 @@ if __name__ == "__main__":
             print(f"{i}. {market.get('title')}")
             print(f"   Ticker: {market.get('ticker')}")
             print(f"   Category: {client.categorize_market(market)}")
+            print(f"   Last Price: {market.get('yes_bid', 'N/A')}")
+            print()
