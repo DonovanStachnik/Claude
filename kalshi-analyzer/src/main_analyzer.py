@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import List, Dict
 from dotenv import load_dotenv
 
-from kalshi_client import KalshiClient
+from kalshi_client_rsa import KalshiClient
 from research_engine import ResearchEngine
 
 
@@ -37,22 +37,14 @@ class KalshiAnalyzer:
         print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print()
 
-        # Step 1: Authenticate
-        print("[1/5] Authenticating with Kalshi...")
-        if not self.kalshi.authenticate():
-            print("✗ Authentication failed!")
-            return []
-        print("✓ Authenticated successfully")
-        print()
-
-        # Step 2: Fetch all markets
-        print("[2/5] Fetching all active markets...")
+        # Step 1: Fetch all markets (authentication happens per-request)
+        print("[1/4] Fetching all active markets...")
         markets = self.kalshi.get_all_markets(status="open")
         print(f"✓ Found {len(markets)} active markets")
         print()
 
-        # Step 3: Categorize markets
-        print("[3/5] Categorizing markets...")
+        # Step 2: Categorize markets
+        print("[2/4] Categorizing markets...")
         categorized = {}
         for market in markets:
             category = self.kalshi.categorize_market(market)
@@ -64,8 +56,8 @@ class KalshiAnalyzer:
             print(f"  {category}: {len(mkts)} markets")
         print()
 
-        # Step 4: Analyze markets for opportunities
-        print("[4/5] Analyzing markets for opportunities...")
+        # Step 3: Analyze markets for opportunities
+        print("[3/4] Analyzing markets for opportunities...")
         print("(This may take a few minutes for all markets)")
         print()
 
@@ -97,7 +89,7 @@ class KalshiAnalyzer:
         print()
 
         # Step 5: Rank and display opportunities
-        print("[5/5] Ranking opportunities...")
+        print("[4/4] Ranking opportunities...")
         ranked = self._rank_opportunities(opportunities)
 
         print()
