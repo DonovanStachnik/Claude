@@ -136,9 +136,8 @@ plot(show_st_line ? st_line : na,
      style     = plot.style_linebr)
 
 // Background tint
-bgcolor(show_bg and is_bull ? color.new(c_bull, 92) :
-        show_bg and is_bear ? color.new(c_bear, 92) : na,
-        title = "Trend Background")
+_bg_color = show_bg ? (is_bull ? color.new(c_bull, 92) : is_bear ? color.new(c_bear, 92) : na) : na
+bgcolor(_bg_color, title = "Trend Background")
 
 // Bar color
 barcolor(color_bars ? st_color : na, title = "Bar Color")
