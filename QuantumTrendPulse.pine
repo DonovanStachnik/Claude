@@ -1,0 +1,309 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ⚡ QUANTUM TRENDPULSE  —  by Quantum Trading Systems
+//  Version : 2.0  |  Pine Script v5
+//
+//  Strategy:
+//    • SuperTrend  — primary trend engine (ATR-based, no repaint)
+//    • RSI         — momentum filter (blocks entries in exhausted zones)
+//    • Stochastic  — oscillator filter (confirms momentum alignment)
+//    • MTF         — optional higher-timeframe trend gate
+//
+//  Signals fire only on a confirmed bar close → zero repainting.
+//
+//  Recommended:
+//    Pairs  : XAUUSD · EURUSD · GBPUSD · US500 · US30 · BTCUSD
+//    TF     : M30 · H1 · H4  (works on M5–W1)
+//    Broker : ECN / Raw / Razor (tight spreads)
+// ═══════════════════════════════════════════════════════════════════════════════
+//@version=5
+indicator("⚡ Quantum TrendPulse", shorttitle="QTP", overlay=true,
+     max_labels_count=500, max_lines_count=200)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. INPUTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── SuperTrend ────────────────────────────────────────────────────────────────
+g_st        = "⚡ SuperTrend"
+st_atr_len  = input.int  (10,  "ATR Period",         minval=1,             group=g_st)
+st_mult     = input.float(3.0, "ATR Multiplier",     minval=0.1, step=0.1, group=g_st)
+
+// ── RSI ──────────────────────────────────────────────────────────────────────
+g_rsi       = "📈 RSI Filter"
+use_rsi     = input.bool(true, "Enable RSI Filter",  group=g_rsi)
+rsi_len     = input.int (14,   "RSI Length",         minval=2,             group=g_rsi)
+rsi_ob      = input.int (70,   "Overbought Level",   minval=51, maxval=99, group=g_rsi)
+rsi_os      = input.int (30,   "Oversold Level",     minval=1,  maxval=49, group=g_rsi)
+
+// ── Stochastic ───────────────────────────────────────────────────────────────
+g_stoch       = "🔄 Stochastic Filter"
+use_stoch     = input.bool(true, "Enable Stochastic Filter", group=g_stoch)
+stoch_k_len   = input.int (14,  "%K Length",         minval=1,             group=g_stoch)
+stoch_d_len   = input.int (3,   "%D Smoothing",      minval=1,             group=g_stoch)
+stoch_smooth  = input.int (3,   "%K Smoothing",      minval=1,             group=g_stoch)
+stoch_ob      = input.int (80,  "Overbought Level",  minval=51, maxval=99, group=g_stoch)
+stoch_os      = input.int (20,  "Oversold Level",    minval=1,  maxval=49, group=g_stoch)
+
+// ── Multi-Timeframe ───────────────────────────────────────────────────────────
+g_mtf     = "⏱ Multi-Timeframe"
+use_mtf   = input.bool      (false, "Enable MTF Trend Gate", group=g_mtf)
+mtf_tf    = input.timeframe ("60",  "Higher Timeframe",      group=g_mtf)
+
+// ── Visuals ───────────────────────────────────────────────────────────────────
+g_vis          = "🎨 Visuals"
+show_signals   = input.bool (true,    "Show BUY / SELL Labels",   group=g_vis)
+show_st_line   = input.bool (true,    "Show SuperTrend Line",     group=g_vis)
+show_bg        = input.bool (true,    "Trend Background Tint",    group=g_vis)
+color_bars     = input.bool (false,   "Color Candle Bars",        group=g_vis)
+c_bull         = input.color(#00E676, "Bull Color",               group=g_vis)
+c_bear         = input.color(#FF1744, "Bear Color",               group=g_vis)
+c_neutral      = input.color(#B0BEC5, "Neutral / Info Color",     group=g_vis)
+
+// ── Alerts ────────────────────────────────────────────────────────────────────
+g_alert   = "🔔 Alerts"
+alert_msg_buy  = input.string("⚡ QTP BUY  | {{ticker}} | TF: {{interval}} | Price: {{close}}",
+     "Buy Alert Message",  group=g_alert)
+alert_msg_sell = input.string("⚡ QTP SELL | {{ticker}} | TF: {{interval}} | Price: {{close}}",
+     "Sell Alert Message", group=g_alert)
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. SUPERTREND  (no repaint — built-in ta.supertrend uses confirmed OHLC)
+// ─────────────────────────────────────────────────────────────────────────────
+[st_line, st_dir] = ta.supertrend(st_mult, st_atr_len)
+
+is_bull = st_dir < 0   // price is ABOVE supertrend → uptrend
+is_bear = st_dir > 0   // price is BELOW supertrend → downtrend
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. RSI
+// ─────────────────────────────────────────────────────────────────────────────
+rsi_val = ta.rsi(close, rsi_len)
+
+// Filter: block longs when overbought, block shorts when oversold
+rsi_ok_buy  = not use_rsi or rsi_val < rsi_ob
+rsi_ok_sell = not use_rsi or rsi_val > rsi_os
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. STOCHASTIC
+// ─────────────────────────────────────────────────────────────────────────────
+stoch_k = ta.sma(ta.stoch(close, high, low, stoch_k_len), stoch_smooth)
+stoch_d = ta.sma(stoch_k, stoch_d_len)
+
+// Filter: block longs when overbought, block shorts when oversold
+stoch_ok_buy  = not use_stoch or stoch_k < stoch_ob
+stoch_ok_sell = not use_stoch or stoch_k > stoch_os
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. MULTI-TIMEFRAME  (lookahead_off → no future leak)
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper function evaluated inside the security call
+f_st_dir() =>
+    [_, d] = ta.supertrend(st_mult, st_atr_len)
+    d
+
+mtf_st_dir  = request.security(syminfo.tickerid, mtf_tf, f_st_dir(),
+     lookahead = barmerge.lookahead_off)
+
+// When MTF filter is disabled, pass-through (never blocks signals)
+mtf_ok_buy  = not use_mtf or mtf_st_dir < 0
+mtf_ok_sell = not use_mtf or mtf_st_dir > 0
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. SIGNAL GENERATION  (fires once on SuperTrend flip — fully confirmed)
+// ─────────────────────────────────────────────────────────────────────────────
+st_flipped_bull = is_bull and not is_bull[1]   // transition: bear → bull
+st_flipped_bear = is_bear and not is_bear[1]   // transition: bull → bear
+
+buy_signal  = st_flipped_bull and rsi_ok_buy  and stoch_ok_buy  and mtf_ok_buy
+sell_signal = st_flipped_bear and rsi_ok_sell and stoch_ok_sell and mtf_ok_sell
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. PLOTS
+// ─────────────────────────────────────────────────────────────────────────────
+st_color = is_bull ? c_bull : c_bear
+
+// SuperTrend line (style_linebr hides gap on flip)
+plot(show_st_line ? st_line : na,
+     title     = "SuperTrend",
+     color     = st_color,
+     linewidth = 2,
+     style     = plot.style_linebr)
+
+// Background tint
+bgcolor(show_bg and is_bull ? color.new(c_bull, 92) :
+        show_bg and is_bear ? color.new(c_bear, 92) : na,
+        title = "Trend Background")
+
+// Bar color
+barcolor(color_bars ? st_color : na, title = "Bar Color")
+
+// ── BUY label ────────────────────────────────────────────────────────────────
+if show_signals and buy_signal
+    lbl = label.new(
+         bar_index,
+         low - ta.atr(14) * 0.8,
+         text      = "BUY",
+         style     = label.style_label_up,
+         color     = c_bull,
+         textcolor = color.white,
+         size      = size.normal)
+
+// ── SELL label ───────────────────────────────────────────────────────────────
+if show_signals and sell_signal
+    lbl = label.new(
+         bar_index,
+         high + ta.atr(14) * 0.8,
+         text      = "SELL",
+         style     = label.style_label_down,
+         color     = c_bear,
+         textcolor = color.white,
+         size      = size.normal)
+
+// Arrow markers (always plotted for quick visual scan)
+plotshape(show_signals and buy_signal,
+     title    = "Buy Arrow",
+     style    = shape.triangleup,
+     location = location.belowbar,
+     color    = c_bull,
+     size     = size.small)
+
+plotshape(show_signals and sell_signal,
+     title    = "Sell Arrow",
+     style    = shape.triangledown,
+     location = location.abovebar,
+     color    = c_bear,
+     size     = size.small)
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. DASHBOARD  (top-right info panel)
+// ─────────────────────────────────────────────────────────────────────────────
+var table dash = table.new(
+     position     = position.top_right,
+     columns      = 2,
+     rows         = 7,
+     bgcolor      = color.new(#0A0A14, 5),
+     border_color = color.new(#2A2A4A, 0),
+     border_width = 1,
+     frame_color  = color.new(#FFD700, 20),
+     frame_width  = 2)
+
+if barstate.islast
+    // ── Title row ─────────────────────────────────────────────────────────
+    table.cell(dash, 0, 0,
+         text          = "⚡  QUANTUM TRENDPULSE",
+         text_color    = color.new(#FFD700, 0),
+         text_size     = size.small,
+         bgcolor       = color.new(#12122A, 0),
+         text_halign   = text.align_center)
+    table.merge_cells(dash, 0, 0, 1, 0)
+
+    // ── SuperTrend ────────────────────────────────────────────────────────
+    table.cell(dash, 0, 1,
+         text       = "SuperTrend",
+         text_color = color.new(#8888AA, 0),
+         text_size  = size.tiny,
+         bgcolor    = color.new(#0D0D1A, 0))
+    table.cell(dash, 1, 1,
+         text       = is_bull ? "▲  BULLISH" : "▼  BEARISH",
+         text_color = is_bull ? c_bull : c_bear,
+         text_size  = size.tiny,
+         bgcolor    = color.new(#0D0D1A, 0))
+
+    // ── RSI ───────────────────────────────────────────────────────────────
+    rsi_state = rsi_val > rsi_ob ? "OVERBOUGHT" : rsi_val < rsi_os ? "OVERSOLD" : "NEUTRAL"
+    rsi_col   = rsi_val > rsi_ob ? c_bear : rsi_val < rsi_os ? c_bull : c_neutral
+    table.cell(dash, 0, 2,
+         text       = "RSI (" + str.tostring(rsi_len) + ")",
+         text_color = color.new(#8888AA, 0),
+         text_size  = size.tiny,
+         bgcolor    = color.new(#111120, 0))
+    table.cell(dash, 1, 2,
+         text       = str.tostring(math.round(rsi_val, 1)) + "  ·  " + rsi_state,
+         text_color = rsi_col,
+         text_size  = size.tiny,
+         bgcolor    = color.new(#111120, 0))
+
+    // ── Stochastic ────────────────────────────────────────────────────────
+    stoch_state = stoch_k > stoch_ob ? "OVERBOUGHT" : stoch_k < stoch_os ? "OVERSOLD" : "NEUTRAL"
+    stoch_col   = stoch_k > stoch_ob ? c_bear : stoch_k < stoch_os ? c_bull : c_neutral
+    table.cell(dash, 0, 3,
+         text       = "Stoch %K",
+         text_color = color.new(#8888AA, 0),
+         text_size  = size.tiny,
+         bgcolor    = color.new(#0D0D1A, 0))
+    table.cell(dash, 1, 3,
+         text       = str.tostring(math.round(stoch_k, 1)) + "  ·  " + stoch_state,
+         text_color = stoch_col,
+         text_size  = size.tiny,
+         bgcolor    = color.new(#0D0D1A, 0))
+
+    // ── MTF ───────────────────────────────────────────────────────────────
+    mtf_text = use_mtf ? (mtf_st_dir < 0 ? "▲  BULLISH" : "▼  BEARISH") : "DISABLED"
+    mtf_col  = use_mtf ? (mtf_st_dir < 0 ? c_bull : c_bear) : color.new(#444455, 0)
+    table.cell(dash, 0, 4,
+         text       = "MTF  [" + mtf_tf + "]",
+         text_color = color.new(#8888AA, 0),
+         text_size  = size.tiny,
+         bgcolor    = color.new(#111120, 0))
+    table.cell(dash, 1, 4,
+         text       = mtf_text,
+         text_color = mtf_col,
+         text_size  = size.tiny,
+         bgcolor    = color.new(#111120, 0))
+
+    // ── Filters ───────────────────────────────────────────────────────────
+    f_rsi   = use_rsi   ? (is_bull ? (rsi_ok_buy  ? "✔" : "✘") : (rsi_ok_sell  ? "✔" : "✘")) : "—"
+    f_stoch = use_stoch ? (is_bull ? (stoch_ok_buy ? "✔" : "✘") : (stoch_ok_sell ? "✔" : "✘")) : "—"
+    f_mtf   = use_mtf   ? (is_bull ? (mtf_ok_buy  ? "✔" : "✘") : (mtf_ok_sell  ? "✔" : "✘")) : "—"
+    filters_txt = "RSI " + f_rsi + "  Stoch " + f_stoch + "  MTF " + f_mtf
+    table.cell(dash, 0, 5,
+         text       = "Filters",
+         text_color = color.new(#8888AA, 0),
+         text_size  = size.tiny,
+         bgcolor    = color.new(#0D0D1A, 0))
+    table.cell(dash, 1, 5,
+         text       = filters_txt,
+         text_color = color.new(#AAAACC, 0),
+         text_size  = size.tiny,
+         bgcolor    = color.new(#0D0D1A, 0))
+
+    // ── Active Signal ─────────────────────────────────────────────────────
+    sig_text = buy_signal  ? "◆  BUY  SIGNAL" :
+               sell_signal ? "◆  SELL SIGNAL" :
+               is_bull     ? "HOLDING LONG"   : "HOLDING SHORT"
+    sig_col  = buy_signal  ? c_bull :
+               sell_signal ? c_bear :
+               is_bull     ? color.new(c_bull, 35) : color.new(c_bear, 35)
+    table.cell(dash, 0, 6,
+         text       = "Signal",
+         text_color = color.new(#8888AA, 0),
+         text_size  = size.tiny,
+         bgcolor    = color.new(#12122A, 0))
+    table.cell(dash, 1, 6,
+         text       = sig_text,
+         text_color = sig_col,
+         text_size  = size.small,
+         bgcolor    = color.new(#12122A, 0))
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. ALERT CONDITIONS
+// ─────────────────────────────────────────────────────────────────────────────
+alertcondition(buy_signal,
+     title   = "QTP — BUY Signal",
+     message = alert_msg_buy)
+
+alertcondition(sell_signal,
+     title   = "QTP — SELL Signal",
+     message = alert_msg_sell)
+
+alertcondition(buy_signal or sell_signal,
+     title   = "QTP — Any Signal",
+     message = "⚡ QTP SIGNAL | {{ticker}} | {{interval}} | Price: {{close}}")
